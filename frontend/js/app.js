@@ -57,6 +57,87 @@ const app = {
         this.showToast('Profile reset. Choose or create a new profile.');
     },
 
+    openProfileModal() {
+        const modal = document.getElementById('modal-profile-switch');
+        if (!modal) return;
+
+        // Populate current profile info
+        const avatar = document.getElementById('profile-modal-avatar');
+        const nameEl = document.getElementById('profile-modal-name');
+        const detailsEl = document.getElementById('profile-modal-details');
+
+        if (this.state.user) {
+            const name = this.state.user.name || 'User';
+            if (avatar) avatar.innerText = name.charAt(0).toUpperCase();
+            if (nameEl) nameEl.innerText = name;
+            const parts = [];
+            if (this.state.user.age) parts.push(`${this.state.user.age} yrs`);
+            if (this.state.user.sex) parts.push(this.state.user.sex.charAt(0).toUpperCase() + this.state.user.sex.slice(1));
+            if (this.state.user.region) parts.push(this.state.user.region.charAt(0).toUpperCase() + this.state.user.region.slice(1) + ' Indian');
+            if (this.state.user.diet_type) parts.push(this.state.user.diet_type.replace('_', '-'));
+            if (detailsEl) detailsEl.innerText = parts.join(' · ') || 'Profile active';
+        } else {
+            if (avatar) avatar.innerText = '?';
+            if (nameEl) nameEl.innerText = 'No Profile';
+            if (detailsEl) detailsEl.innerText = 'Create a new profile to get started';
+        }
+
+        modal.classList.remove('hidden');
+        modal.onclick = (e) => {
+            if (e.target === modal) this.closeProfileModal();
+        };
+    },
+
+    closeProfileModal() {
+        const modal = document.getElementById('modal-profile-switch');
+        if (modal) modal.classList.add('hidden');
+    },
+
+    resumeProfile() {
+        this.closeProfileModal();
+        if (this.state.userId && this.state.currentView) {
+            this.navigate(this.state.currentView);
+        } else if (this.state.userId) {
+            this.navigate('dashboard');
+        }
+        this.showToast('Welcome back! Continuing your profile.');
+    },
+
+    restartProfile() {
+        this.closeProfileModal();
+        // Clear current user but data remains saved on the server
+        localStorage.removeItem('ai_diet_user_id');
+        this.state.userId = null;
+        this.state.user = null;
+        this.updateHeaderProfile();
+
+        // Reset onboarding form to step 1
+        if (typeof onboarding !== 'undefined') {
+            onboarding.currentStep = 1;
+            onboarding.data = {
+                name: '',
+                age: 28,
+                sex: 'male',
+                height_cm: 172,
+                weight_kg: 72,
+                activity_level: 'moderate',
+                goal: 'maintain',
+                region: 'north',
+                diet_type: 'vegetarian',
+                weekly_budget_inr: 2500,
+                allergies: '',
+                food_dislikes: '',
+                wake_time: '07:00',
+                sleep_time: '23:00',
+                exercise_time: '',
+                meals_per_day: 4
+            };
+        }
+
+        this.navigate('onboarding');
+        this.showToast('Starting fresh! Fill in your new profile details.');
+    },
+
     openApiModal() {
         const modal = document.getElementById('modal-api-config');
         const input = document.getElementById('input-api-url');
