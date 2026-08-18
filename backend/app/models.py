@@ -67,6 +67,7 @@ class Food(Base):
     allergens = Column(String, default="")               # comma-separated: gluten, dairy, nuts, soy
     prep_method = Column(String, default="")             # steamed, fried, grilled, raw, boiled
     seasonality = Column(String, default="all_year")     # all_year, summer, winter, monsoon
+    ingredients = Column(Text, default="")               # comma-separated ingredients list
 
 
 class MealLog(Base):
