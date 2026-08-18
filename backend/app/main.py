@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timedelta, timezone
 
-from .database import Base, engine, get_db
+from .database import Base, engine, get_db, SessionLocal
 from . import models, schemas, calculators
 from .recommender import recommend_meals, _parse_csv_field
 from .meal_planner import generate_daily_plan
@@ -34,13 +34,39 @@ from .substitution import find_substitutes
 from .nutrition_gap import calculate_nutrition_gaps
 from .chat import process_chat
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="NutriCalc API",
     description="AI/ML-powered Diet & Calorie Calculator for Indian regional nutrition",
     version="2.0.0",
 )
+
+
+@app.on_event("startup")
+def startup_db_init():
+    try:
+        print("[DATABASE] Connecting to database and creating tables...")
+        Base.metadata.create_all(bind=engine)
+        print("[DATABASE] Tables verified/created successfully.")
+
+        # Auto-seed foods if table is empty
+        db = SessionLocal()
+        try:
+            food_count = db.query(models.Food).count()
+            if food_count == 0:
+                print("[SEED] Database is empty. Seeding 114 Indian regional foods...")
+                from .seed_data import seed
+                seed()
+                print("[SEED] Database seeded successfully.")
+            else:
+                print(f"[DATABASE] Connected! Found {food_count} existing food records.")
+        except Exception as seed_err:
+            print(f"[SEED NOTICE] Auto-seed check notice: {seed_err}")
+        finally:
+            db.close()
+    except Exception as db_err:
+        print(f"[DATABASE WARNING] Could not connect to database on startup: {db_err}")
+        print("[DATABASE] Running in resilient mode. Ensure DATABASE_URL is valid.")
+
 
 # CORS for frontend
 app.add_middleware(
