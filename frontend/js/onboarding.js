@@ -273,13 +273,63 @@ const onboarding = {
                 `;
                 break;
             case 8:
+                // Calculate metrics
+                const h = this.data.height_cm;
+                const w = this.data.weight_kg;
+                const a = this.data.age;
+                const h_m = h / 100;
+                
+                // BMI
+                const bmi = (w / (h_m * h_m)).toFixed(1);
+                
+                // BMR (Mifflin-St Jeor)
+                let bmr = (10 * w) + (6.25 * h) - (5 * a);
+                bmr += (this.data.sex === 'male') ? 5 : -161;
+                
+                // TDEE / Daily Calorie Target (DCT)
+                const activityMultipliers = {
+                    'sedentary': 1.2,
+                    'light': 1.375,
+                    'moderate': 1.55,
+                    'active': 1.725,
+                    'very_active': 1.9
+                };
+                let tdee = bmr * (activityMultipliers[this.data.activity_level] || 1.2);
+                let dct = tdee;
+                if (this.data.goal === 'lose_weight') dct -= 500;
+                if (this.data.goal === 'gain_weight') dct += 500;
+                
+                // Healthy Weight Range (HT)
+                const minWeight = (18.5 * h_m * h_m).toFixed(1);
+                const maxWeight = (24.9 * h_m * h_m).toFixed(1);
+
                 html = `
                     <div style="text-align: center; padding: 10px 0;">
                         <span style="font-size: 3rem;">✨</span>
                         <h2 style="font-family: var(--font-serif); font-size: 2rem; color: var(--primary-900); margin: 8px 0;">You're All Set!</h2>
                         <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 460px; margin: 0 auto 20px;">
-                            NutriCalc will calculate your exact BMR, target calories, macro splits, and generate regional Indian meal plans for ${this.data.name || 'you'}.
+                            Here is a preview of your personalized health metrics. Click finish to generate your AI diet plan!
                         </p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                            <div class="card" style="background: var(--bg-subtle); padding: 12px; text-align: center;">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">BMI</div>
+                                <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary-800);">${bmi}</div>
+                            </div>
+                            <div class="card" style="background: var(--bg-subtle); padding: 12px; text-align: center;">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">BMR</div>
+                                <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary-800);">${Math.round(bmr)} <span style="font-size: 0.8rem; font-weight: normal;">kcal</span></div>
+                            </div>
+                            <div class="card" style="background: var(--bg-subtle); padding: 12px; text-align: center;">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Calorie Target (DCT)</div>
+                                <div style="font-size: 1.4rem; font-weight: 800; color: var(--primary-800);">${Math.round(dct)} <span style="font-size: 0.8rem; font-weight: normal;">kcal</span></div>
+                            </div>
+                            <div class="card" style="background: var(--bg-subtle); padding: 12px; text-align: center;">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Healthy Weight (HT)</div>
+                                <div style="font-size: 1.2rem; font-weight: 800; color: var(--primary-800);">${minWeight} - ${maxWeight} <span style="font-size: 0.8rem; font-weight: normal;">kg</span></div>
+                            </div>
+                        </div>
+
                         <div class="card" style="text-align: left; background: var(--bg-subtle); padding: 16px;">
                             <div style="font-size: 0.88rem; margin-bottom: 6px;">📍 <strong>Region:</strong> ${this.data.region.toUpperCase()}</div>
                             <div style="font-size: 0.88rem; margin-bottom: 6px;">🥗 <strong>Diet:</strong> ${this.data.diet_type.replace('_', '-')}</div>
