@@ -29,14 +29,23 @@ connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
 _is_postgres = "postgresql" in DATABASE_URL
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True,       # Detect and replace stale connections
-    pool_recycle=280,         # Recycle connections before Supabase 5-min timeout
-    pool_size=5 if _is_postgres else 1,
-    max_overflow=10 if _is_postgres else 0,
-)
+if _is_postgres:
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args=connect_args,
+        pool_pre_ping=True,       # Detect and replace stale connections
+        pool_recycle=280,         # Recycle connections before Supabase 5-min timeout
+        pool_size=5,
+        max_overflow=10,
+    )
+else:
+    # SQLite: use NullPool to avoid connection exhaustion in single-threaded mode
+    from sqlalchemy.pool import StaticPool
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args=connect_args,
+        poolclass=StaticPool,
+    )
 
 print(f"[DATABASE] Engine configured: {'PostgreSQL (Supabase)' if _is_postgres else 'SQLite (local)'}")
 
