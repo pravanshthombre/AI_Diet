@@ -118,12 +118,12 @@ def recommend_meals(
     """Return top-N food recommendations for a meal slot."""
 
     # 1. Primary regional candidates
-    candidates = (
-        db.query(Food)
-        .filter(Food.meal_slot == meal_slot)
-        .filter((Food.region == region) | (Food.region == "pan_india"))
-        .all()
-    )
+    query = db.query(Food).filter(Food.meal_slot == meal_slot)
+    
+    if region != "pan_india":
+        query = query.filter((Food.region == region) | (Food.region == "pan_india"))
+        
+    candidates = query.all()
 
     # Fallback to all regions if region is empty
     if not candidates:
