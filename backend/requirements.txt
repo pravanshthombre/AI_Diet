@@ -1,10 +1,10 @@
-fastapi
+fastapi>=0.100.0
 uvicorn[standard]
-sqlalchemy
-pydantic
+sqlalchemy>=2.0.0
+pydantic>=2.0.0
 scikit-learn
 numpy
 python-multipart
 psycopg2-binary
 python-dotenv
-
+httpx

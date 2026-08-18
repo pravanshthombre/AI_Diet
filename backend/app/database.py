@@ -27,12 +27,18 @@ if "postgresql" in DATABASE_URL and "sslmode" not in DATABASE_URL and "localhost
 # Connect arguments
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
+_is_postgres = "postgresql" in DATABASE_URL
+
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
-    pool_pre_ping=True,  # Automatically reconnect after idle drops
-    pool_recycle=300,    # Recycle connections every 5 minutes
+    pool_pre_ping=True,       # Detect and replace stale connections
+    pool_recycle=280,         # Recycle connections before Supabase 5-min timeout
+    pool_size=5 if _is_postgres else 1,
+    max_overflow=10 if _is_postgres else 0,
 )
+
+print(f"[DATABASE] Engine configured: {'PostgreSQL (Supabase)' if _is_postgres else 'SQLite (local)'}")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

@@ -8,6 +8,7 @@ Hard constraints (diet type, allergies, dislikes, Jain, budget) are always enfor
 BEFORE any ML ranking.
 """
 import numpy as np
+from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from .models import Food, MealLog, Feedback, User
@@ -15,7 +16,7 @@ from .features import food_vector, cosine_scores
 from .ml_ranker import ranker
 
 
-def _parse_csv_field(value: str | None) -> list[str]:
+def _parse_csv_field(value: Optional[str] = None) -> List[str]:
     return [item.strip().lower() for item in (value or "").split(",") if item.strip()]
 
 
@@ -26,11 +27,11 @@ def _food_matches_dislike(food: Food, dislike: str) -> bool:
 
 
 def _apply_hard_constraints(
-    foods: list[Food],
+    foods: List[Food],
     diet_type: str,
-    allergies: list[str] | None = None,
-    food_dislikes: list[str] | None = None,
-) -> list[Food]:
+    allergies: Optional[List[str]] = None,
+    food_dislikes: Optional[List[str]] = None,
+) -> List[Food]:
     """Constraints that must NEVER be violated."""
     filtered = []
     for f in foods:
@@ -60,8 +61,8 @@ def _apply_hard_constraints(
 def _build_weighted_user_vector(
     db: Session,
     user_id: int,
-    positive_ids: set[int],
-) -> np.ndarray | None:
+    positive_ids: set,
+) -> Optional[np.ndarray]:
     """Build preference vector weighted by feedback ratings and meal logs."""
     if not positive_ids:
         return None
@@ -109,11 +110,11 @@ def recommend_meals(
     diet_type: str,
     meal_slot: str,
     target_calories_for_slot: float,
-    weekly_budget_inr: float | None = None,
-    allergies: list[str] | None = None,
-    food_dislikes: list[str] | None = None,
+    weekly_budget_inr: Optional[float] = None,
+    allergies: Optional[List[str]] = None,
+    food_dislikes: Optional[List[str]] = None,
     top_n: int = 5,
-) -> list[dict]:
+) -> List[dict]:
     """Return top-N food recommendations for a meal slot."""
 
     # 1. Primary regional candidates
