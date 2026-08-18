@@ -116,25 +116,48 @@ def recommend_meals(
 ) -> list[dict]:
     """Return top-N food recommendations for a meal slot."""
 
+    # 1. Primary regional candidates
     candidates = (
         db.query(Food)
         .filter(Food.meal_slot == meal_slot)
         .filter((Food.region == region) | (Food.region == "pan_india"))
         .all()
     )
-    candidates = _apply_hard_constraints(
+
+    # Fallback to all regions if region is empty
+    if not candidates:
+        candidates = db.query(Food).filter(Food.meal_slot == meal_slot).all()
+
+    constrained = _apply_hard_constraints(
         candidates, diet_type, allergies, food_dislikes
     )
 
+    # If strict allergies/dislikes removed everything, retry with diet_type only
+    if not constrained and candidates:
+        constrained = _apply_hard_constraints(candidates, diet_type)
+    
+    if not constrained:
+        constrained = candidates
+
+    # Budget filtering with graceful fallback
     per_meal_budget = None
-    if weekly_budget_inr:
+    if weekly_budget_inr and constrained:
         per_meal_budget = (weekly_budget_inr / 21) * 1.5
-        candidates = [
-            f for f in candidates if f.price_inr_per_serving <= per_meal_budget
+        budget_matched = [
+            f for f in constrained if f.price_inr_per_serving <= per_meal_budget
         ]
+        if budget_matched:
+            candidates = budget_matched
+        else:
+            # Fallback to the most economical items
+            candidates = sorted(constrained, key=lambda f: f.price_inr_per_serving)[:top_n * 2]
+    else:
+        candidates = constrained
+
 
     if not candidates:
         return []
+
 
     liked_ids = {
         fb.food_id
