@@ -278,9 +278,12 @@ html, body {
     animation: fadeInView 0.4s var(--ease-out-spring) forwards;
 }
 
-.view.hidden {
+.hidden,
+.view.hidden,
+.modal-overlay.hidden {
     display: none !important;
 }
+
 
 @keyframes fadeInView {
     from {

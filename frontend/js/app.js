@@ -63,7 +63,12 @@ const app = {
         const status = document.getElementById('api-connection-status');
         if (input) input.value = localStorage.getItem('NUTRICALC_API_BASE') || '';
         if (status) status.innerHTML = `Current Base: <code>${api.getBaseUrl() || '(Relative root)'}</code>`;
-        if (modal) modal.classList.remove('hidden');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.onclick = (e) => {
+                if (e.target === modal) this.closeApiModal();
+            };
+        }
     },
 
     closeApiModal() {
@@ -88,15 +93,18 @@ const app = {
         const input = document.getElementById('input-api-url');
         const url = input ? input.value.trim() : '';
         api.setBaseUrl(url);
-        this.showToast('Backend API URL saved!');
+        this.showToast('Backend API URL saved and connected!', 'success');
         this.closeApiModal();
         if (this.state.userId) {
             await this.loadUser();
+        } else {
+            this.navigate('onboarding');
         }
         if (this.state.currentView) {
             this.navigate(this.state.currentView);
         }
     },
+
 
 
     setupRouter() {
