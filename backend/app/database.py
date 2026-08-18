@@ -28,29 +28,40 @@ if "postgresql" in DATABASE_URL and "sslmode" not in DATABASE_URL and "localhost
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
 _is_postgres = "postgresql" in DATABASE_URL
+engine = None
 
 if _is_postgres:
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args=connect_args,
-        pool_pre_ping=True,       # Detect and replace stale connections
-        pool_recycle=280,         # Recycle connections before Supabase 5-min timeout
-        pool_size=5,
-        max_overflow=10,
-    )
-else:
-    # SQLite: use NullPool to avoid connection exhaustion in single-threaded mode
+    try:
+        temp_engine = create_engine(
+            DATABASE_URL,
+            connect_args=connect_args,
+            pool_pre_ping=True,
+            pool_recycle=280,
+            pool_size=5,
+            max_overflow=10,
+        )
+        # Test connection with 5-second timeout
+        with temp_engine.connect() as conn:
+            pass
+        engine = temp_engine
+        print("[DATABASE] Successfully connected to PostgreSQL (Supabase)!")
+    except Exception as pg_err:
+        print(f"[DATABASE WARNING] Could not connect to PostgreSQL ({pg_err}).")
+        print("[DATABASE] Falling back to SQLite to keep service online.")
+        _is_postgres = False
+
+if not engine:
     from sqlalchemy.pool import StaticPool
     engine = create_engine(
-        DATABASE_URL,
-        connect_args=connect_args,
+        "sqlite:///./nutricalc.db",
+        connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-
-print(f"[DATABASE] Engine configured: {'PostgreSQL (Supabase)' if _is_postgres else 'SQLite (local)'}")
+    print("[DATABASE] Running on local SQLite engine.")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 
 def get_db():

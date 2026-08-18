@@ -212,35 +212,39 @@ FOODS = [
 
 def seed():
     """Create tables and populate the food database."""
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
     try:
-        db.query(Food).delete()
-        for row in FOODS:
-            (name, region, diet_type, jain, slot, cal, protein, carbs, fat,
-             fiber, iron, calcium, price, allergens, prep, season) = row
-            db.add(Food(
-                name=name,
-                region=region,
-                diet_type=diet_type,
-                is_jain_friendly=jain,
-                meal_slot=slot,
-                calories_per_serving=cal,
-                protein_g=protein,
-                carbs_g=carbs,
-                fat_g=fat,
-                fiber_g=fiber,
-                iron_mg=iron,
-                calcium_mg=calcium,
-                price_inr_per_serving=price,
-                allergens=allergens,
-                prep_method=prep,
-                seasonality=season,
-            ))
-        db.commit()
-        print(f"[OK] Seeded {len(FOODS)} Indian foods into the database.")
-    finally:
-        db.close()
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            db.query(Food).delete()
+            for row in FOODS:
+                (name, region, diet_type, jain, slot, cal, protein, carbs, fat,
+                 fiber, iron, calcium, price, allergens, prep, season) = row
+                db.add(Food(
+                    name=name,
+                    region=region,
+                    diet_type=diet_type,
+                    is_jain_friendly=jain,
+                    meal_slot=slot,
+                    calories_per_serving=cal,
+                    protein_g=protein,
+                    carbs_g=carbs,
+                    fat_g=fat,
+                    fiber_g=fiber,
+                    iron_mg=iron,
+                    calcium_mg=calcium,
+                    price_inr_per_serving=price,
+                    allergens=allergens,
+                    prep_method=prep,
+                    seasonality=season,
+                ))
+            db.commit()
+            print(f"[OK] Seeded {len(FOODS)} Indian foods into the database.")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[SEED WARNING] Could not seed database: {e}")
+
 
 
 if __name__ == "__main__":
