@@ -1,4 +1,17 @@
-const API_BASE = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes(':8000')) ? '' : 'http://127.0.0.1:8000';
+const API_BASE = (() => {
+    if (typeof window === 'undefined') return 'http://127.0.0.1:8000';
+    if (window.API_BASE_URL) return window.API_BASE_URL;
+    const stored = localStorage.getItem('NUTRICALC_API_BASE');
+    if (stored) return stored;
+    // If served from the same domain (e.g., full-stack on Render or localhost:8000)
+    if (window.location.origin.includes('onrender.com') || window.location.origin.includes(':8000')) {
+        return '';
+    }
+    // If deployed separately on Vercel/Netlify, fallback to empty or custom endpoint
+    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://127.0.0.1:8000'
+        : '';
+})();
 
 class ApiClient {
     async request(endpoint, options = {}) {
