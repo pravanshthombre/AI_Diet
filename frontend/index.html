@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#064e3b">
+    <meta name="description" content="NutriCalc — AI-powered Indian diet & calorie calculator with regional meal plans">
+    <title>NutriCalc · Smart Indian Nutrition & Diet Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="page-bg" aria-hidden="true"></div>
+
+    <div id="app">
+        <div id="toast-container"></div>
+
+        <!-- Main Navigation Header -->
+        <header id="app-brand" class="app-header">
+            <div class="brand-container" onclick="app.navigate(app.state.userId ? 'dashboard' : 'onboarding')">
+                <div class="brand-icon-box">🌿</div>
+                <div class="brand-text">
+                    <span class="brand-name">NutriCalc</span>
+                    <span class="brand-tagline">AI Nutrition Engine</span>
+                </div>
+            </div>
+
+            <!-- Desktop Navigation -->
+            <nav class="desktop-nav" id="desktop-nav">
+                <button class="nav-link active" data-target="dashboard">📊 Dashboard</button>
+                <button class="nav-link" data-target="mealplan">🍱 Meal Plan</button>
+                <button class="nav-link" data-target="tracking">💧 Tracker</button>
+                <button class="nav-link" data-target="foods">🥗 Food Explorer</button>
+                <button class="nav-link" data-target="chat">💬 AI Dietitian</button>
+            </nav>
+
+            <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
+                <div id="user-badge-container" class="user-profile-badge hidden" onclick="app.openProfileModal()">
+                    <div class="avatar-initial" id="badge-avatar">U</div>
+                    <span class="user-badge-name" id="badge-username">Profile</span>
+                </div>
+                <button id="btn-restart-onboarding" class="btn btn-secondary small" onclick="app.resetUser()" title="Change or Reset User">Switch Profile</button>
+            </div>
+        </header>
+
+        <main id="view-container">
+            <!-- ================= ONBOARDING VIEW ================= -->
+            <section id="onboarding" class="view hidden">
+                <div class="hero-banner" style="margin-bottom: 24px;">
+                    <div class="hero-content">
+                        <p class="hero-eyebrow">Smart Regional Nutrition</p>
+                        <h1 class="hero-title">Welcome to NutriCalc</h1>
+                        <p class="hero-sub">AI-driven Indian diet customization tailored to your state, cuisine, calorie target, and budget.</p>
+                    </div>
+                </div>
+
+                <!-- Quick Start Cards for Instant Experience -->
+                <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, #ffffff 0%, var(--primary-50) 100%); border-color: var(--primary-300);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                        <div>
+                            <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--primary-900);">⚡ Quick Start Demo Profiles</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted);">Skip setup and jump straight into the full experience with a pre-configured profile:</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+                        <button class="btn btn-primary" style="font-size: 0.88rem; padding: 10px 16px;" onclick="onboarding.loadPreset('north_veg')">
+                            🥬 Rahul · North Indian Veg (2000 kcal)
+                        </button>
+                        <button class="btn btn-secondary" style="font-size: 0.88rem; padding: 10px 16px; background: #fff;" onclick="onboarding.loadPreset('south_nonveg')">
+                            🍗 Priya · South Indian Non-Veg (1800 kcal)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="max-width: 680px; margin: 0 auto;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <span style="font-weight: 700; font-size: 0.9rem; color: var(--primary-800);" id="step-indicator">Step 1 of 8</span>
+                        <div style="width: 140px; height: 8px; background: var(--bg-subtle); border-radius: var(--radius-full); overflow: hidden;">
+                            <div class="progress-bar" id="onboarding-progress" style="width: 12.5%; height: 100%; background: var(--primary-600); transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="onboarding-step-content" class="step-content" style="min-height: 260px;"></div>
+
+                    <div style="display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                        <button id="btn-prev" class="btn btn-secondary hidden">Back</button>
+                        <button id="btn-next" class="btn btn-primary" style="margin-left: auto;">Next</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= DASHBOARD VIEW ================= -->
+            <section id="dashboard" class="view hidden">
+                <div class="hero-banner dashboard-hero">
+                    <div class="hero-content">
+                        <p class="hero-eyebrow" id="dash-date">Today</p>
+                        <h1 id="dash-greeting-name" class="hero-title">Hello</h1>
+                        <p class="hero-sub" id="dash-user-subtitle">Your personalized nutrition target and diet progress</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-glass" onclick="app.navigate('mealplan')">🍱 View Diet Plan</button>
+                        <button class="btn btn-glass" onclick="app.navigate('chat')">💬 Ask Dietitian</button>
+                    </div>
+                </div>
+
+                <!-- Primary Metrics Cards -->
+                <div class="metrics-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="label">BMI Body Mass</span>
+                            <span class="stat-icon">⚖️</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span id="dash-bmi-val" class="value">--</span>
+                            <canvas id="bmi-gauge" width="90" height="50"></canvas>
+                        </div>
+                        <span class="unit" id="dash-bmi-status">Calculating...</span>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="label">Basal Metabolic Rate</span>
+                            <span class="stat-icon">🔥</span>
+                        </div>
+                        <span id="dash-bmr-val" class="value">--</span>
+                        <span class="unit">kcal / day (Resting)</span>
+                    </div>
+
+                    <div class="stat-card highlight">
+                        <div class="stat-card-header">
+                            <span class="label">Daily Calorie Target</span>
+                            <span class="stat-icon">🎯</span>
+                        </div>
+                        <span id="dash-tdee-val" class="value text-highlight">--</span>
+                        <span class="unit">kcal / day (Goal adjusted)</span>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="label">Hydration Target</span>
+                            <span class="stat-icon">💧</span>
+                        </div>
+                        <span id="dash-water-val" class="value">--</span>
+                        <span class="unit">Liters / day</span>
+                    </div>
+                </div>
+
+                <div class="dashboard-layout">
+                    <!-- Left Column: Progress & Actions -->
+                    <div class="dash-main-col">
+                        <div class="section-head">
+                            <h2 class="section-title">Today's Nutrition Intake</h2>
+                            <span class="section-badge">Live Summary</span>
+                        </div>
+                        <div class="progress-grid">
+                            <div class="progress-item">
+                                <canvas id="cal-ring" width="90" height="90"></canvas>
+                                <span class="label">Calories</span>
+                            </div>
+                            <div class="progress-item">
+                                <canvas id="protein-ring" width="90" height="90"></canvas>
+                                <span class="label">Protein</span>
+                            </div>
+                            <div class="progress-item">
+                                <canvas id="fiber-ring" width="90" height="90"></canvas>
+                                <span class="label">Fiber</span>
+                            </div>
+                            <div class="progress-item">
+                                <canvas id="water-ring" width="90" height="90"></canvas>
+                                <span class="label">Water</span>
+                            </div>
+                        </div>
+
+                        <div id="dash-alerts" class="alerts-container"></div>
+
+                        <div class="section-head">
+                            <h2 class="section-title">Quick Actions</h2>
+                        </div>
+                        <div class="quick-actions-grid">
+                            <div class="action-btn" onclick="app.navigate('mealplan')">
+                                <span class="action-icon">🍱</span>
+                                <div class="action-text">
+                                    <strong>Diet Plan</strong>
+                                    <small>View & Swap Today's Meals</small>
+                                </div>
+                            </div>
+                            <div class="action-btn" onclick="app.navigate('tracking')">
+                                <span class="action-icon">💧</span>
+                                <div class="action-text">
+                                    <strong>Log Water & Meal</strong>
+                                    <small>Track consumption</small>
+                                </div>
+                            </div>
+                            <div class="action-btn" onclick="app.navigate('foods')">
+                                <span class="action-icon">🥗</span>
+                                <div class="action-text">
+                                    <strong>Food Library</strong>
+                                    <small>100+ Regional Indian Foods</small>
+                                </div>
+                            </div>
+                            <div class="action-btn" onclick="app.navigate('chat')">
+                                <span class="action-icon">💬</span>
+                                <div class="action-text">
+                                    <strong>AI Dietitian</strong>
+                                    <small>Ask food recommendations</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Weight Trend & Diet Info -->
+                    <div class="dash-side-col">
+                        <div class="section-head">
+                            <h2 class="section-title">Weight Trend (kg)</h2>
+                        </div>
+                        <div class="card" style="margin-bottom: 20px;">
+                            <canvas id="weight-chart" width="300" height="150" style="width: 100%;"></canvas>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                                <span style="font-size: 0.85rem; color: var(--text-muted);">Current: <strong id="dash-current-wt">--</strong> kg</span>
+                                <button class="btn btn-outline small" onclick="app.navigate('tracking')">+ Log Weight</button>
+                            </div>
+                        </div>
+
+                        <div class="card" style="background: linear-gradient(135deg, var(--bg-surface) 0%, var(--primary-50) 100%);">
+                            <h3 style="font-size: 1rem; font-weight: 700; color: var(--primary-900); margin-bottom: 8px;">🌱 Indian Diet Tip</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;" id="daily-tip-text">
+                                Pairing traditional pulses with millets (like Bajra or Ragi) creates a complete amino acid profile for vegetarian protein synthesis.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= MEAL PLAN VIEW ================= -->
+            <section id="mealplan" class="view hidden">
+                <div class="hero-banner meal-hero">
+                    <div class="hero-content">
+                        <p class="hero-eyebrow">Personalized for your region</p>
+                        <h1 class="hero-title">Your Daily Diet Plan</h1>
+                        <p class="hero-sub">Calorie-matched Indian regional meals with automatic macro balancing.</p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btn-regen-plan" class="btn btn-glass">↻ Regenerate Plan</button>
+                    </div>
+                </div>
+
+                <!-- Macro & Cost Summary Strip -->
+                <div id="mealplan-summary" class="summary-strip">
+                    <div class="summary-item">
+                        <span class="label">Target Calories</span>
+                        <span id="mp-cals" class="val">--</span>
+                    </div>
+                    <div class="summary-divider"></div>
+                    <div class="summary-item">
+                        <span class="label">Protein</span>
+                        <span id="mp-pro" class="val">--</span>
+                    </div>
+                    <div class="summary-divider"></div>
+                    <div class="summary-item">
+                        <span class="label">Est. Cost</span>
+                        <span id="mp-cost" class="val">--</span>
+                    </div>
+                </div>
+
+                <div id="mealplan-content">
+                    <div class="shimmer-skeleton" style="height: 140px; margin-bottom: 16px;"></div>
+                    <div class="shimmer-skeleton" style="height: 140px; margin-bottom: 16px;"></div>
+                    <div class="shimmer-skeleton" style="height: 140px;"></div>
+                </div>
+            </section>
+
+            <!-- ================= DAILY TRACKER VIEW ================= -->
+            <section id="tracking" class="view hidden">
+                <div class="hero-banner track-hero compact">
+                    <div class="hero-content">
+                        <p class="hero-eyebrow">Daily Log</p>
+                        <h1 class="hero-title">Daily Tracker</h1>
+                        <p class="hero-sub">Log meals, water intake, and weight progression</p>
+                    </div>
+                </div>
+
+                <div class="tracker-grid">
+                    <!-- Water Tracker -->
+                    <div class="card">
+                        <h2 class="card-title">💧 Hydration Tracker</h2>
+                        <p class="card-desc">Click glass buttons to log hydration</p>
+                        
+                        <div class="water-tracker-container">
+                            <div class="water-visual">
+                                <button id="btn-add-water" class="water-glass-btn" title="Add 250ml">+</button>
+                                <div class="water-bar-container">
+                                    <div class="water-fill" id="water-fill-level" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                <span id="water-count" class="water-stats-text">0 / 8 glasses</span>
+                                <button class="btn btn-secondary small" onclick="tracking.logWater(500)">+ 500 ml Bottle</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Weight Logger -->
+                    <div class="card">
+                        <h2 class="card-title">⚖️ Log Current Weight</h2>
+                        <p class="card-desc">Track your progress over time</p>
+                        <div style="display: flex; gap: 10px; margin-top: 16px;">
+                            <input type="number" id="input-log-weight" placeholder="Weight in kg (e.g. 68.5)" step="0.1" style="flex: 1; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                            <button id="btn-log-weight" class="btn btn-primary">Save Weight</button>
+                        </div>
+                    </div>
+
+                    <!-- Meal Logger -->
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <h2 class="card-title">🍽️ Log Meal / Food Item</h2>
+                        <p class="card-desc">Search foods from our authentic Indian database</p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                            <div class="input-group">
+                                <label class="field-label">Meal Slot</label>
+                                <select id="sel-log-meal">
+                                    <option value="breakfast">Breakfast</option>
+                                    <option value="lunch">Lunch</option>
+                                    <option value="snack">Snack</option>
+                                    <option value="dinner">Dinner</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="position: relative;">
+                                <label class="field-label">Food Name (Search)</label>
+                                <input type="text" id="input-log-food" placeholder="Type food e.g. Idli, Paneer, Dal..." autocomplete="off">
+                            </div>
+                            <div class="input-group">
+                                <label class="field-label">Servings</label>
+                                <input type="number" id="input-log-servings" placeholder="1" value="1" min="0.5" step="0.5">
+                            </div>
+                        </div>
+                        <button id="btn-log-meal" class="btn btn-primary mt-2" style="width: 100%;">Log Food Entry</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= FOOD EXPLORER VIEW ================= -->
+            <section id="foods" class="view hidden">
+                <div class="hero-banner compact">
+                    <div class="hero-content">
+                        <p class="hero-eyebrow">Database</p>
+                        <h1 class="hero-title">Indian Food Explorer</h1>
+                        <p class="hero-sub">Explore nutritional profiles, macros, and prices of 100+ Indian dishes.</p>
+                    </div>
+                </div>
+
+                <div class="food-filter-bar">
+                    <input type="text" id="food-search-query" placeholder="🔍 Search dishes (e.g. Biryani, Dosa, Rajma)..." style="flex: 1; min-width: 200px;">
+                    <select id="food-filter-region">
+                        <option value="">All Regions</option>
+                        <option value="north">North India</option>
+                        <option value="south">South India</option>
+                        <option value="east">East India</option>
+                        <option value="west">West India</option>
+                        <option value="pan_india">Pan India</option>
+                    </select>
+                    <select id="food-filter-diet">
+                        <option value="">All Diets</option>
+                        <option value="vegetarian">Vegetarian</option>
+                        <option value="non_vegetarian">Non-Vegetarian</option>
+                        <option value="vegan">Vegan</option>
+                    </select>
+                    <select id="food-filter-slot">
+                        <option value="">All Meal Slots</option>
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="snack">Snack</option>
+                    </select>
+                </div>
+
+                <div id="food-explorer-list" class="food-cards-grid">
+                    <div class="shimmer-skeleton" style="height: 160px;"></div>
+                    <div class="shimmer-skeleton" style="height: 160px;"></div>
+                    <div class="shimmer-skeleton" style="height: 160px;"></div>
+                </div>
+            </section>
+
+            <!-- ================= AI CHAT VIEW ================= -->
+            <section id="chat" class="view hidden">
+                <div class="hero-banner compact">
+                    <div class="hero-content">
+                        <p class="hero-eyebrow">Smart Assistant</p>
+                        <h1 class="hero-title">AI Nutritionist</h1>
+                        <p class="hero-sub">Get personalized meal swaps, macro guidance, and recipe insights</p>
+                    </div>
+                </div>
+
+                <div class="chat-wrapper">
+                    <div class="chat-quick-chips">
+                        <span class="chip" onclick="chat.sendQuick('High protein vegetarian lunch for muscle gain')">💪 High Protein Veg Lunch</span>
+                        <span class="chip" onclick="chat.sendQuick('Affordable South Indian meal plan under ₹150')">💰 Budget South Indian Plan</span>
+                        <span class="chip" onclick="chat.sendQuick('Healthy low calorie evening snacks')">🥗 Low-Calorie Snacks</span>
+                        <span class="chip" onclick="chat.sendQuick('How to overcome my daily protein gap?')">🎯 Fix Protein Gaps</span>
+                    </div>
+
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="message ai">
+                            <div class="msg-avatar">🌿</div>
+                            <div class="msg-bubble">
+                                <p>Namaste! I'm your <strong>NutriCalc AI Dietitian</strong>. How can I help you customize your meals, balance macros, or find healthy Indian substitutes today?</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <input type="text" id="chat-input" placeholder="Ask about meals, macros, calorie targets, or substitutions..." autocomplete="off">
+                        <button id="btn-send-chat" class="btn-send" aria-label="Send message">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Mobile Bottom Navigation -->
+        <nav id="bottom-nav" class="bottom-nav hidden">
+            <button class="nav-item active" data-target="dashboard">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+                </span>
+                <span class="label">Home</span>
+            </button>
+            <button class="nav-item" data-target="mealplan">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M8 6V4M16 6V4"/></svg>
+                </span>
+                <span class="label">Plan</span>
+            </button>
+            <button class="nav-item" data-target="tracking">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-8"/></svg>
+                </span>
+                <span class="label">Track</span>
+            </button>
+            <button class="nav-item" data-target="foods">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+                </span>
+                <span class="label">Foods</span>
+            </button>
+            <button class="nav-item" data-target="chat">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z"/></svg>
+                </span>
+                <span class="label">Chat</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/onboarding.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/mealplan.js"></script>
+    <script src="js/tracking.js"></script>
+    <script src="js/foods.js"></script>
+    <script src="js/chat.js"></script>
+</body>
+</html>
