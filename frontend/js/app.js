@@ -57,6 +57,48 @@ const app = {
         this.showToast('Profile reset. Choose or create a new profile.');
     },
 
+    openApiModal() {
+        const modal = document.getElementById('modal-api-config');
+        const input = document.getElementById('input-api-url');
+        const status = document.getElementById('api-connection-status');
+        if (input) input.value = localStorage.getItem('NUTRICALC_API_BASE') || '';
+        if (status) status.innerHTML = `Current Base: <code>${api.getBaseUrl() || '(Relative root)'}</code>`;
+        if (modal) modal.classList.remove('hidden');
+    },
+
+    closeApiModal() {
+        const modal = document.getElementById('modal-api-config');
+        if (modal) modal.classList.add('hidden');
+    },
+
+    async testApiServer() {
+        const input = document.getElementById('input-api-url');
+        const status = document.getElementById('api-connection-status');
+        const url = input ? input.value.trim() : null;
+        if (status) status.innerHTML = `Testing connection to <code>${url || api.getBaseUrl()}</code>...`;
+        const ok = await api.testConnection(url);
+        if (status) {
+            status.innerHTML = ok 
+                ? `<span style="color: #059669; font-weight: 700;">🟢 Connected successfully!</span>`
+                : `<span style="color: #dc2626; font-weight: 700;">🔴 Could not reach server. Verify URL & ensure backend is live.</span>`;
+        }
+    },
+
+    async saveApiServer() {
+        const input = document.getElementById('input-api-url');
+        const url = input ? input.value.trim() : '';
+        api.setBaseUrl(url);
+        this.showToast('Backend API URL saved!');
+        this.closeApiModal();
+        if (this.state.userId) {
+            await this.loadUser();
+        }
+        if (this.state.currentView) {
+            this.navigate(this.state.currentView);
+        }
+    },
+
+
     setupRouter() {
         window.addEventListener('hashchange', () => {
             const hash = window.location.hash.replace('#', '');

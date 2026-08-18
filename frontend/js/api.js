@@ -1,21 +1,51 @@
-const API_BASE = (() => {
-    if (typeof window === 'undefined') return 'http://127.0.0.1:8000';
-    if (window.API_BASE_URL) return window.API_BASE_URL;
-    const stored = localStorage.getItem('NUTRICALC_API_BASE');
-    if (stored) return stored;
-    // If served from the same domain (e.g., full-stack on Render or localhost:8000)
-    if (window.location.origin.includes('onrender.com') || window.location.origin.includes(':8000')) {
-        return '';
-    }
-    // If deployed separately on Vercel/Netlify, fallback to empty or custom endpoint
-    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://127.0.0.1:8000'
-        : '';
-})();
-
 class ApiClient {
+    constructor() {
+        this.fallbackRenderUrl = 'https://nutricalc-backend.onrender.com';
+    }
+
+    getBaseUrl() {
+        if (typeof window === 'undefined') return 'http://127.0.0.1:8000';
+        if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/+$/, '');
+        
+        const stored = localStorage.getItem('NUTRICALC_API_BASE');
+        if (stored) return stored.replace(/\/+$/, '');
+
+        // If served from the same domain (e.g. unified full-stack on Render or localhost)
+        if (window.location.origin.includes('onrender.com') || window.location.origin.includes(':8000')) {
+            return '';
+        }
+
+        // Local development server (e.g. Python http.server on port 3000 / 5500)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://127.0.0.1:8000';
+        }
+
+        // Default to cloud backend on Vercel / Netlify / external hosting
+        return this.fallbackRenderUrl;
+    }
+
+    setBaseUrl(url) {
+        if (url && url.trim()) {
+            localStorage.setItem('NUTRICALC_API_BASE', url.trim().replace(/\/+$/, ''));
+        } else {
+            localStorage.removeItem('NUTRICALC_API_BASE');
+        }
+    }
+
+    async testConnection(customUrl = null) {
+        const base = customUrl !== null ? (customUrl || '').replace(/\/+$/, '') : this.getBaseUrl();
+        const testUrl = `${base}/api/health`;
+        try {
+            const res = await fetch(testUrl, { method: 'GET', signal: AbortSignal.timeout(5000) });
+            return res.ok;
+        } catch (e) {
+            return false;
+        }
+    }
+
     async request(endpoint, options = {}) {
-        const url = `${API_BASE}${endpoint}`;
+        const base = this.getBaseUrl();
+        const url = `${base}${endpoint}`;
         const headers = { 'Content-Type': 'application/json', ...options.headers };
         const config = { ...options, headers };
 
@@ -31,16 +61,20 @@ class ApiClient {
 
             if (!response.ok) {
                 console.error('API Error:', data);
-                throw new Error(data.detail || data.message || 'API request failed');
+                throw new Error(typeof data === 'object' ? (data.detail || data.message || 'API request failed') : data);
             }
             return data;
         } catch (error) {
-            if (error.message && error.message !== 'API request failed') {
-                console.error('Network Error:', error);
+            if (error.name === 'TypeError' || error.message.includes('fetch')) {
+                console.error('Network Connection Error to:', url);
+                if (typeof app !== 'undefined' && app.showToast) {
+                    app.showToast(`Cannot reach backend server. Check API URL in Settings.`, 'error');
+                }
             }
             throw error;
         }
     }
+
 
     // ── Users ──
     async createUser(userData) {
