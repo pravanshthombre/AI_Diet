@@ -237,9 +237,9 @@ def recommend_meals(
         norm_ml = ml_scores.get(food.id, 0.0) / ml_max if ml_max > 0 else 0.0
         final_score = 0.6 * norm_content + 0.4 * norm_ml
 
-        # Boost score for user's preferred/favorite foods
+        # Massive boost for user's preferred/favorite foods to guarantee first preference
         if food.id in preferred_ids:
-            final_score += 0.25
+            final_score += 2.0
             reason = "Your preferred food ❤️"
 
         blended.append((food, final_score, reason))

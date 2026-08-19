@@ -6,12 +6,13 @@ Uses cosine similarity on normalized nutrient vectors.
 """
 import numpy as np
 from sqlalchemy.orm import Session
-from .models import Food
+from .models import Food, FoodPreference
 from .features import food_vector, cosine_scores
 
 
 def find_substitutes(
     db: Session,
+    user_id: int,
     food_id: int,
     meal_slot: str,
     diet_type: str,
@@ -22,10 +23,17 @@ def find_substitutes(
     """
     Find foods most similar to the given food in nutrient profile,
     respecting diet-type and optional budget constraints.
+    Gives extreme priority to foods the user has marked as preferred.
     """
     original = db.query(Food).filter(Food.id == food_id).first()
     if not original:
         return []
+
+    # Get preferred foods for this user
+    preferred_ids = {
+        fp.food_id
+        for fp in db.query(FoodPreference).filter(FoodPreference.user_id == user_id)
+    }
 
     candidates = (
         db.query(Food)
@@ -58,7 +66,15 @@ def find_substitutes(
     cand_vecs = [food_vector(f) for f in filtered]
     sims = cosine_scores(orig_vec, np.array(cand_vecs))
 
-    results = sorted(zip(filtered, sims), key=lambda x: x[1], reverse=True)[:top_n]
+    # Apply massive boost to preferred foods to force them to the top of the swap list
+    boosted_sims = []
+    for f, sim in zip(filtered, sims):
+        if f.id in preferred_ids:
+            boosted_sims.append(float(sim) + 2.0)
+        else:
+            boosted_sims.append(float(sim))
+
+    results = sorted(zip(filtered, boosted_sims), key=lambda x: x[1], reverse=True)[:top_n]
 
     return [
         {

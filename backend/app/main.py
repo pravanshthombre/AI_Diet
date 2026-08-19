@@ -272,7 +272,7 @@ def substitute_food(
         budget_ceiling = (user.weekly_budget_inr / 21) * 1.5
 
     subs = find_substitutes(
-        db=db, food_id=req.food_id, meal_slot=req.meal_slot,
+        db=db, user_id=user_id, food_id=req.food_id, meal_slot=req.meal_slot,
         diet_type=user.diet_type, region=user.region,
         budget_ceiling=budget_ceiling, top_n=5,
     )
