@@ -58,26 +58,33 @@ const dashboard = {
                 charts.drawProgressRing('water-ring', h2oPct, '#0284c7', 'Water');
             }, 80);
 
-            // Goal Reached Celebration
-            const hasReachedGoal = calPct >= 100 || proPct >= 100 || fibPct >= 100 || h2oPct >= 100;
+            // Goal Reached Celebrations (tracked individually)
+            const goals = [
+                { id: 'cal', pct: calPct, name: 'Calorie' },
+                { id: 'pro', pct: proPct, name: 'Protein' },
+                { id: 'fib', pct: fibPct, name: 'Fiber' },
+                { id: 'h2o', pct: h2oPct, name: 'Hydration' }
+            ];
+
+            let newlyCompletedGoal = null;
+
+            for (const goal of goals) {
+                const storageKey = `celebrated_${goal.id}_today`;
+                if (goal.pct >= 100 && !sessionStorage.getItem(storageKey)) {
+                    sessionStorage.setItem(storageKey, 'true');
+                    newlyCompletedGoal = goal;
+                    break; // Only celebrate one at a time to prevent overlapping modals
+                }
+            }
             
-            // Only show confetti once per session if a goal is reached
-            if (hasReachedGoal && !sessionStorage.getItem('goal_celebrated_today')) {
-                sessionStorage.setItem('goal_celebrated_today', 'true');
-                
+            if (newlyCompletedGoal) {
                 setTimeout(() => {
                     const modal = document.getElementById('goalModal');
                     if (modal) {
                         modal.classList.remove('hidden');
                         
-                        // Set specific text based on what was completed
-                        let msg = "You've hit a daily goal!";
-                        if (calPct >= 100) msg = "You've hit your daily Calorie target!";
-                        else if (proPct >= 100) msg = "You've hit your daily Protein target!";
-                        else if (h2oPct >= 100) msg = "You've hit your daily Hydration target!";
-                        
                         const textEl = document.getElementById('goalModalText');
-                        if(textEl) textEl.innerText = msg;
+                        if(textEl) textEl.innerText = `You've hit your daily ${newlyCompletedGoal.name} target!`;
                     }
                     
                     // Generate Confetti
