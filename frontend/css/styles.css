@@ -1344,3 +1344,29 @@ html, body {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
 }
+
+/* Modal Animation */
+.modal-content-animated {
+    animation: popup 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popup {
+    0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Confetti */
+.confetti-piece {
+    position: fixed;
+    top: -20px;
+    z-index: 2000;
+    width: 10px;
+    height: 20px;
+    animation: fall linear forwards;
+}
+
+@keyframes fall {
+    to {
+        transform: translateY(100vh) rotate(720deg);
+    }
+}

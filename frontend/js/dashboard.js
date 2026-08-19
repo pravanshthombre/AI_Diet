@@ -58,6 +58,45 @@ const dashboard = {
                 charts.drawProgressRing('water-ring', h2oPct, '#0284c7', 'Water');
             }, 80);
 
+            // Goal Reached Celebration
+            const hasReachedGoal = calPct >= 100 || proPct >= 100 || fibPct >= 100 || h2oPct >= 100;
+            
+            // Only show confetti once per session if a goal is reached
+            if (hasReachedGoal && !sessionStorage.getItem('goal_celebrated_today')) {
+                sessionStorage.setItem('goal_celebrated_today', 'true');
+                
+                setTimeout(() => {
+                    const modal = document.getElementById('goalModal');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                        
+                        // Set specific text based on what was completed
+                        let msg = "You've hit a daily goal!";
+                        if (calPct >= 100) msg = "You've hit your daily Calorie target!";
+                        else if (proPct >= 100) msg = "You've hit your daily Protein target!";
+                        else if (h2oPct >= 100) msg = "You've hit your daily Hydration target!";
+                        
+                        const textEl = document.getElementById('goalModalText');
+                        if(textEl) textEl.innerText = msg;
+                    }
+                    
+                    // Generate Confetti
+                    const colors = ['#10b981', '#f97316', '#047857', '#0ea5e9'];
+                    for(let i = 0; i < 60; i++) {
+                        const confetti = document.createElement('div');
+                        confetti.classList.add('confetti-piece');
+                        confetti.style.left = Math.random() * 100 + 'vw';
+                        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                        confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                        confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+                        document.body.appendChild(confetti);
+                        
+                        setTimeout(() => confetti.remove(), 5000); // Clean up
+                    }
+                }, 800); // Small delay before modal shows after rings draw
+            }
+
+
             // Nutrition gap alerts
             try {
                 const gaps = await api.request(`/nutrition-gaps/${user.id}?days=1`);

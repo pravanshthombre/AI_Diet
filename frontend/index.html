@@ -502,6 +502,20 @@
         </div>
     </div>
 
+    <!-- Goal Reached Modal -->
+    <div class="modal-overlay hidden" id="goalModal">
+        <div class="modal-card modal-content-animated" style="max-width: 380px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 64px; height: 64px; background: var(--primary-100); color: var(--primary-500); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 16px;">
+                🏆
+            </div>
+            <h3 style="font-size: 1.5rem; font-weight: 800; color: var(--text-main); margin-bottom: 8px;">Congratulations!</h3>
+            <p style="color: var(--text-muted); margin-bottom: 24px;" id="goalModalText">You've hit your daily goal!</p>
+            <button class="btn btn-primary" style="width: 100%;" onclick="document.getElementById('goalModal').classList.add('hidden')">
+                Keep it up
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="js/api.js"></script>
 
