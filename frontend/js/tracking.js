@@ -37,14 +37,36 @@ const tracking = {
 
     updateWaterUI() {
         const glasses = Math.floor(this.waterAmount / 250);
-        const targetGlasses = Math.floor(this.waterGoalMl / 250);
+        const targetGlasses = Math.floor(this.waterGoalMl / 250) || 8;
+        
         const countEl = document.getElementById('water-count');
         if (countEl) {
             countEl.innerText = `${glasses} / ${targetGlasses} glasses (${this.waterAmount} / ${this.waterGoalMl} ml)`;
         }
+        
         let pct = Math.min(100, (this.waterAmount / this.waterGoalMl) * 100);
         const fillEl = document.getElementById('water-fill-level');
         if (fillEl) fillEl.style.width = `${pct}%`;
+
+        // Calculate and update the time reminder (assuming 16 waking hours in a 24-hour period)
+        const wakingHours = 16;
+        const intervalHours = wakingHours / targetGlasses;
+        const hrs = Math.floor(intervalHours);
+        const mins = Math.round((intervalHours - hrs) * 60);
+        
+        const reminderEl = document.getElementById('water-reminder');
+        if (reminderEl) {
+            if (glasses >= targetGlasses) {
+                reminderEl.innerHTML = `🌟 Daily goal met! Great job staying hydrated.`;
+                reminderEl.style.color = '#10b981';
+            } else {
+                const timeString = hrs > 0 
+                    ? `${hrs}h ${mins > 0 ? mins + 'm' : ''}`.trim()
+                    : `${mins} mins`;
+                reminderEl.innerHTML = `⏰ Tip: Drink 1 glass (250ml) every <strong>${timeString}</strong>`;
+                reminderEl.style.color = 'var(--primary-600)';
+            }
+        }
     },
 
     async logWater(amount) {

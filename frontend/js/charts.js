@@ -3,13 +3,16 @@ const charts = {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
         
-        // High DPI support
-        const dpr = window.devicePixelRatio || 1;
-        
-        // Read from HTML attributes to prevent runaway scaling
-        const displayWidth = parseInt(canvas.getAttribute('width')) || 90;
-        const displayHeight = parseInt(canvas.getAttribute('height')) || 90;
+        // Use fixed display size from HTML attributes (prevents runaway scaling)
+        const displayWidth = 90;
+        const displayHeight = 90;
 
+        // Lock CSS size so the canvas never visually grows on re-render
+        canvas.style.width = displayWidth + 'px';
+        canvas.style.height = displayHeight + 'px';
+
+        // Set internal resolution for sharp rendering on high-DPI screens
+        const dpr = window.devicePixelRatio || 1;
         canvas.width = displayWidth * dpr;
         canvas.height = displayHeight * dpr;
 
@@ -55,12 +58,16 @@ const charts = {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        
-        // Always use the fixed attribute sizes for the internal resolution calculation
-        const displayWidth = parseInt(canvas.getAttribute('width')) || 90;
-        const displayHeight = parseInt(canvas.getAttribute('height')) || 50;
+        // Use fixed display size
+        const displayWidth = 90;
+        const displayHeight = 50;
 
+        // Lock CSS size
+        canvas.style.width = displayWidth + 'px';
+        canvas.style.height = displayHeight + 'px';
+
+        // Set internal resolution for high-DPI
+        const dpr = window.devicePixelRatio || 1;
         canvas.width = displayWidth * dpr;
         canvas.height = displayHeight * dpr;
 
@@ -103,11 +110,16 @@ const charts = {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        const displayWidth = rect.width || parseInt(canvas.getAttribute('width')) || 300;
-        const displayHeight = parseInt(canvas.getAttribute('height')) || 150;
+        // For line chart: use container width (responsive), but fixed height
+        const displayWidth = canvas.parentElement ? canvas.parentElement.clientWidth - 20 : 300;
+        const displayHeight = 150;
 
+        // Lock CSS size
+        canvas.style.width = displayWidth + 'px';
+        canvas.style.height = displayHeight + 'px';
+
+        // Set internal resolution for high-DPI
+        const dpr = window.devicePixelRatio || 1;
         canvas.width = displayWidth * dpr;
         canvas.height = displayHeight * dpr;
 
