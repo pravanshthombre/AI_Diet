@@ -43,7 +43,7 @@ class MLRanker:
             1.0 + abs(candidate_food.calories_per_serving - target_calories)
             / max(target_calories, 1)
         )
-        region_match = 1.0 if user.region == candidate_food.region else 0.0
+        region_match = 1.0 if getattr(user, "region", None) == getattr(candidate_food, "region", None) else 0.0
         state_match = (
             1.0
             if getattr(user, "state", None)
