@@ -1099,6 +1099,10 @@ html, body {
     text-decoration: none;
 }
 
+.btn:active {
+    transform: scale(0.96);
+}
+
 .btn-primary {
     background: linear-gradient(135deg, var(--primary-700), var(--primary-800));
     color: white;

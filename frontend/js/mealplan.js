@@ -107,7 +107,7 @@ const mealplan = {
                             </div>
                             <div style="display: flex; gap: 6px;">
                                 <button class="btn btn-outline small" onclick="mealplan.substitute('${slot}', ${food.id})">Swap</button>
-                                <button class="btn btn-secondary small" onclick="mealplan.quickLogFood(${food.id}, '${slot}', '${food.name.replace(/'/g, "\\'")}')">✓ Eaten</button>
+                                <button class="btn btn-secondary small" onclick="mealplan.quickLogFood(${food.id}, '${slot}', '${food.name.replace(/'/g, "\\'")}', this)">✓ Eaten</button>
                             </div>
                         </div>
                     </div>
@@ -135,12 +135,28 @@ const mealplan = {
         container.innerHTML = html;
     },
 
-    async quickLogFood(foodId, slot, name) {
+    async quickLogFood(foodId, slot, name, btnElement) {
+        // Visual click feedback immediately
+        if (btnElement) {
+            btnElement.innerHTML = '<span style="display:inline-block; animation: popup 0.3s ease;">✅ Logged</span>';
+            btnElement.style.backgroundColor = 'var(--primary-500)';
+            btnElement.style.color = 'white';
+            btnElement.style.borderColor = 'var(--primary-500)';
+            btnElement.style.pointerEvents = 'none';
+        }
+
         try {
             await api.logMeal(app.state.userId, foodId, slot, 1.0);
             app.showToast(`Logged "${name}" to ${slot}!`);
         } catch (e) {
             app.showToast(`Failed to log ${name}`, 'error');
+            
+            // Revert on error
+            if (btnElement) {
+                btnElement.innerHTML = '✓ Eaten';
+                btnElement.style = '';
+                btnElement.style.pointerEvents = 'auto';
+            }
         }
     },
 
