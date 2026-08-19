@@ -5,9 +5,10 @@ const charts = {
         
         // High DPI support
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        const displayWidth = rect.width || 90;
-        const displayHeight = rect.height || 90;
+        
+        // Read from HTML attributes to prevent runaway scaling
+        const displayWidth = parseInt(canvas.getAttribute('width')) || 90;
+        const displayHeight = parseInt(canvas.getAttribute('height')) || 90;
 
         canvas.width = displayWidth * dpr;
         canvas.height = displayHeight * dpr;
@@ -55,9 +56,10 @@ const charts = {
         if (!canvas) return;
 
         const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        const displayWidth = rect.width || 90;
-        const displayHeight = rect.height || 50;
+        
+        // Always use the fixed attribute sizes for the internal resolution calculation
+        const displayWidth = parseInt(canvas.getAttribute('width')) || 90;
+        const displayHeight = parseInt(canvas.getAttribute('height')) || 50;
 
         canvas.width = displayWidth * dpr;
         canvas.height = displayHeight * dpr;
@@ -103,8 +105,8 @@ const charts = {
 
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
-        const displayWidth = rect.width || 300;
-        const displayHeight = rect.height || 150;
+        const displayWidth = rect.width || parseInt(canvas.getAttribute('width')) || 300;
+        const displayHeight = parseInt(canvas.getAttribute('height')) || 150;
 
         canvas.width = displayWidth * dpr;
         canvas.height = displayHeight * dpr;
