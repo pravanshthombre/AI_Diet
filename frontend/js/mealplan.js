@@ -12,6 +12,9 @@ const mealplan = {
 
     async loadPlan() {
         const container = document.getElementById('mealplan-content');
+        if (!container) return;
+        if (!app.state.userId) return;
+
         container.innerHTML = `
             <div class="shimmer-skeleton" style="height: 140px; margin-bottom: 16px;"></div>
             <div class="shimmer-skeleton" style="height: 140px; margin-bottom: 16px;"></div>
@@ -21,92 +24,115 @@ const mealplan = {
         try {
             const plan = await api.getDietPlan(app.state.userId);
             this.planData = plan;
-
-            // Update summary
-            document.getElementById('mp-cals').innerText = `${Math.round(plan.total_calories || 0)} kcal`;
-            document.getElementById('mp-pro').innerText = `${Math.round(plan.total_protein || 0)}g`;
-            document.getElementById('mp-cost').innerText = `₹${Math.round(plan.total_cost || 0)}`;
-
-            let html = '';
-            const slotLabels = {
-                breakfast: { icon: '☀️', label: 'Breakfast', time: plan.meal_timing?.breakfast || '8:00 AM' },
-                lunch:     { icon: '🍛', label: 'Lunch',     time: plan.meal_timing?.lunch || '1:00 PM' },
-                snack:     { icon: '🫖', label: 'Evening Snack', time: plan.meal_timing?.snack || '5:00 PM' },
-                dinner:    { icon: '🌙', label: 'Dinner',    time: plan.meal_timing?.dinner || '8:30 PM' },
-            };
-
-            for (const [slot, meta] of Object.entries(slotLabels)) {
-                const foods = plan[slot] || [];
-                if (foods.length === 0) continue;
-
-                html += `
-                    <div class="meal-slot-container">
-                        <div class="meal-slot-header">
-                            <span>${meta.icon} ${meta.label}</span>
-                            <span class="meal-slot-time">⏰ ${meta.time}</span>
-                        </div>
-                        <div class="food-cards-grid">
-                `;
-
-                foods.forEach(item => {
-                    const food = item.food;
-                    const dietBadge = food.diet_type === 'non_vegetarian' ? 'non-veg' : food.diet_type === 'vegan' ? 'vegan' : 'veg';
-                    const isPreferred = (item.reason || '').includes('preferred');
-                    const preferredBadge = isPreferred ? '<span class="badge preferred" style="background: #fee2e2; color: #dc2626; font-weight: 700;">❤️ Preferred</span>' : '';
-                    html += `
-                        <div class="food-card${isPreferred ? ' food-preferred' : ''}">
-                            <div class="food-header">
-                                <span class="food-name">${food.name}</span>
-                                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                                    ${preferredBadge}
-                                    <span class="badge ${dietBadge}">${food.diet_type.replace('_', '-')}</span>
-                                    <span class="badge region">${food.region}</span>
-                                </div>
-                            </div>
-                            <div class="food-macros">
-                                <span>🔥 ${food.calories_per_serving} kcal</span>
-                                <span>🥩 ${food.protein_g}g Pro</span>
-                                <span>🌾 ${food.carbs_g}g Carb</span>
-                                <span>🧈 ${food.fat_g}g Fat</span>
-                                <span>🌱 ${food.fiber_g || 0}g Fib</span>
-                            </div>
-                            <div class="food-footer">
-                                <div>
-                                    <span style="font-weight: 800; color: var(--primary-800);">₹${food.price_inr_per_serving}</span>
-                                    <div style="font-size: 0.75rem; color: var(--text-light);">${item.reason || 'AI Target Match'}</div>
-                                </div>
-                                <div style="display: flex; gap: 6px;">
-                                    <button class="btn btn-outline small" onclick="mealplan.substitute('${slot}', ${food.id})">🔄 Swap</button>
-                                    <button class="btn btn-secondary small" onclick="mealplan.quickLogFood(${food.id}, '${slot}', '${food.name.replace(/'/g, "\\'")}')">✓ Eaten</button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                html += `
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Hydration advice card
-            if (plan.water) {
-                html += `
-                    <div class="card" style="background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 100%); border-color: #bae6fd; text-align: center; margin-top: 10px;">
-                        <h3 style="color: #0369a1; font-size: 1.1rem; margin-bottom: 6px;">💧 Recommended Daily Hydration</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">
-                            Aim for <strong>${plan.water.liters_per_day} Liters</strong> (${plan.water.glasses_per_day} glasses) spaced evenly across your meals.
-                        </p>
-                    </div>
-                `;
-            }
-
-            container.innerHTML = html;
+            this.renderPlan();
         } catch (e) {
             console.error(e);
             container.innerHTML = `<p style="color:var(--accent-coral); text-align:center; padding: 2rem; font-weight: 600;">Failed to load meal plan. Make sure you've selected or created a profile.</p>`;
         }
+    },
+
+    renderPlan() {
+        const container = document.getElementById('mealplan-content');
+        if (!container || !this.planData) return;
+
+        const plan = this.planData;
+
+        // Recalculate totals based on current local state
+        let currentTotalCals = 0;
+        let currentTotalPro = 0;
+        let currentTotalCost = 0;
+
+        ['breakfast', 'lunch', 'snack', 'dinner'].forEach(slot => {
+            if (plan[slot] && plan[slot].length > 0) {
+                // Assuming first item is the primary pick
+                const f = plan[slot][0].food;
+                currentTotalCals += f.calories_per_serving;
+                currentTotalPro += f.protein_g;
+                currentTotalCost += f.price_inr_per_serving;
+            }
+        });
+
+        // Update summary
+        document.getElementById('mp-cals').innerText = `${Math.round(currentTotalCals || plan.total_calories || 0)} kcal`;
+        document.getElementById('mp-pro').innerText = `${Math.round(currentTotalPro || plan.total_protein || 0)}g`;
+        document.getElementById('mp-cost').innerText = `₹${Math.round(currentTotalCost || plan.total_cost || 0)}`;
+
+        let html = '';
+        const slotLabels = {
+            breakfast: { icon: '☀️', label: 'Breakfast', time: plan.meal_timing?.breakfast || '8:00 AM' },
+            lunch:     { icon: '🍛', label: 'Lunch',     time: plan.meal_timing?.lunch || '1:00 PM' },
+            snack:     { icon: '🫖', label: 'Evening Snack', time: plan.meal_timing?.snack || '5:00 PM' },
+            dinner:    { icon: '🌙', label: 'Dinner',    time: plan.meal_timing?.dinner || '8:30 PM' },
+        };
+
+        for (const [slot, meta] of Object.entries(slotLabels)) {
+            const foods = plan[slot] || [];
+            if (foods.length === 0) continue;
+
+            html += `
+                <div class="meal-slot-container">
+                    <div class="meal-slot-header">
+                        <span>${meta.icon} ${meta.label}</span>
+                        <span class="meal-slot-time">⏰ ${meta.time}</span>
+                    </div>
+                    <div class="food-cards-grid">
+            `;
+
+            foods.forEach(item => {
+                const food = item.food;
+                const dietBadge = food.diet_type === 'non_vegetarian' ? 'non-veg' : food.diet_type === 'vegan' ? 'vegan' : 'veg';
+                const isPreferred = (item.reason || '').includes('preferred');
+                const preferredBadge = isPreferred ? '<span class="badge preferred" style="background: #fee2e2; color: #dc2626; font-weight: 700;">❤️ Preferred</span>' : '';
+                html += `
+                    <div class="food-card${isPreferred ? ' food-preferred' : ''}">
+                        <div class="food-header">
+                            <span class="food-name">${food.name}</span>
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                ${preferredBadge}
+                                <span class="badge ${dietBadge}">${food.diet_type.replace('_', '-')}</span>
+                                <span class="badge region">${food.region}</span>
+                            </div>
+                        </div>
+                        <div class="food-macros">
+                            <span>🔥 ${food.calories_per_serving} kcal</span>
+                            <span>🥩 ${food.protein_g}g Pro</span>
+                            <span>🌾 ${food.carbs_g}g Carb</span>
+                            <span>🧈 ${food.fat_g}g Fat</span>
+                            <span>🌱 ${food.fiber_g || 0}g Fib</span>
+                        </div>
+                        <div class="food-footer">
+                            <div>
+                                <span style="font-weight: 800; color: var(--primary-800);">₹${food.price_inr_per_serving}</span>
+                                <div style="font-size: 0.75rem; color: var(--text-light);">${item.reason || 'AI Target Match'}</div>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn btn-outline small" onclick="mealplan.substitute('${slot}', ${food.id})">Swap</button>
+                                <button class="btn btn-secondary small" onclick="mealplan.quickLogFood(${food.id}, '${slot}', '${food.name.replace(/'/g, "\\'")}')">✓ Eaten</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+
+        // Hydration advice card
+        if (plan.water) {
+            html += `
+                <div class="card" style="background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 100%); border-color: #bae6fd; text-align: center; margin-top: 10px;">
+                    <h3 style="color: #0369a1; font-size: 1.1rem; margin-bottom: 6px;">💧 Recommended Daily Hydration</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">
+                        Aim for <strong>${plan.water.liters_per_day} Liters</strong> (${plan.water.glasses_per_day} glasses) spaced evenly across your meals.
+                    </p>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
     },
 
     async quickLogFood(foodId, slot, name) {
@@ -127,7 +153,9 @@ const mealplan = {
             });
 
             if (subs && subs.length > 0) {
-                this.showSubModal(slot, subs);
+                // Store substitutes temporarily to apply them later
+                this.currentSubs = subs;
+                this.showSubModal(slot, foodId, subs);
             } else {
                 app.showToast('No direct substitute matches found for your criteria.', 'info');
             }
@@ -137,17 +165,17 @@ const mealplan = {
         }
     },
 
-    showSubModal(slot, subs) {
+    showSubModal(slot, originalFoodId, subs) {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.onclick = (e) => {
             if (e.target === modal) modal.remove();
         };
 
-        let itemsHtml = subs.map(s => {
+        let itemsHtml = subs.map((s, index) => {
             const f = s.food;
             return `
-                <div class="food-card" style="margin-bottom: 12px; cursor: pointer;" onclick="mealplan.applySwap('${slot}', ${f.id}, '${f.name.replace(/'/g, "\\'")}', this)">
+                <div class="food-card" style="margin-bottom: 12px; cursor: pointer;" onclick="mealplan.applySwap('${slot}', ${originalFoodId}, ${index}, this)">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <strong>${f.name}</strong>
                         <span class="badge veg">Match: ${Math.round(s.similarity * 100)}%</span>
@@ -174,11 +202,28 @@ const mealplan = {
         document.body.appendChild(modal);
     },
 
-    async applySwap(slot, foodId, name, element) {
+    applySwap(slot, originalFoodId, subIndex, element) {
         const modal = element.closest('.modal-overlay');
         if (modal) modal.remove();
-        app.showToast(`Swapped to ${name}!`);
-        await this.loadPlan();
+
+        const selectedSub = this.currentSubs[subIndex];
+        if (!selectedSub) return;
+
+        // Find and replace the food in the local state
+        const slotItems = this.planData[slot];
+        if (slotItems) {
+            const itemIndex = slotItems.findIndex(i => i.food.id === originalFoodId);
+            if (itemIndex !== -1) {
+                slotItems[itemIndex] = {
+                    food: selectedSub.food,
+                    score: 1.0,
+                    reason: "Swapped by you ✨"
+                };
+            }
+        }
+
+        app.showToast(`Swapped to ${selectedSub.food.name}!`);
+        this.renderPlan(); // Instantly update the UI without reloading
     }
 };
 
