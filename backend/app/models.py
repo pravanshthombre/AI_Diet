@@ -2,12 +2,13 @@
 Database tables (SQLAlchemy ORM models).
 
 Tables:
-  users        – profile, preferences, dietary info, budget
-  foods        – Indian regional food database with full nutrition
-  meal_logs    – meals a user has logged
-  water_logs   – daily water intake
-  weight_logs  – weight tracking over time
-  feedback     – explicit food ratings/likes/dislikes
+  users             – profile, preferences, dietary info, budget
+  foods             – Indian regional food database with full nutrition
+  meal_logs         – meals a user has logged
+  water_logs        – daily water intake
+  weight_logs       – weight tracking over time
+  feedback          – explicit food ratings/likes/dislikes
+  food_preferences  – user's preferred/favorite foods for diet plan prioritization
 """
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text
@@ -44,6 +45,7 @@ class User(Base):
     water_logs = relationship("WaterLog", back_populates="user")
     weight_logs = relationship("WeightLog", back_populates="user")
     feedback = relationship("Feedback", back_populates="user")
+    food_preferences = relationship("FoodPreference", back_populates="user")
 
 
 class Food(Base):
@@ -117,4 +119,18 @@ class Feedback(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="feedback")
+    food = relationship("Food")
+
+
+class FoodPreference(Base):
+    """User's preferred/favorite foods — these get prioritized in diet plan generation."""
+    __tablename__ = "food_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    food_id = Column(Integer, ForeignKey("foods.id"), nullable=False)
+    meal_slot = Column(String, default="")          # optional: preferred slot for this food
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="food_preferences")
     food = relationship("Food")

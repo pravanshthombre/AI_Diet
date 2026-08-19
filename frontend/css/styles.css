@@ -701,6 +701,41 @@ html, body {
     border-color: var(--primary-300);
 }
 
+.food-card.food-preferred {
+    border-color: #fca5a5;
+    background: linear-gradient(135deg, #fff 0%, #fff1f2 100%);
+    box-shadow: 0 0 0 1px #fecaca, var(--shadow-sm);
+}
+
+.food-card.food-preferred:hover {
+    border-color: #f87171;
+    box-shadow: 0 0 0 1px #fca5a5, var(--shadow-md);
+}
+
+.btn-preferred {
+    border: 1.5px solid #e5e7eb;
+    background: #fff;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    transition: all 0.2s ease;
+}
+
+.btn-preferred:hover {
+    border-color: #f87171;
+    color: #dc2626;
+    background: #fff1f2;
+}
+
+.btn-preferred.active {
+    border-color: #f87171;
+    background: #fee2e2;
+    color: #dc2626;
+}
+
 .food-header {
     display: flex;
     align-items: flex-start;

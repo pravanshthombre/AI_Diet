@@ -11,7 +11,7 @@ import numpy as np
 from typing import Optional, List
 from sqlalchemy.orm import Session
 
-from .models import Food, MealLog, Feedback, User
+from .models import Food, MealLog, Feedback, FoodPreference, User
 from .features import food_vector, cosine_scores
 from .ml_ranker import ranker
 
@@ -62,8 +62,9 @@ def _build_weighted_user_vector(
     db: Session,
     user_id: int,
     positive_ids: set,
+    preferred_ids: set = None,
 ) -> Optional[np.ndarray]:
-    """Build preference vector weighted by feedback ratings and meal logs."""
+    """Build preference vector weighted by feedback ratings, meal logs, and food preferences."""
     if not positive_ids:
         return None
 
@@ -79,15 +80,18 @@ def _build_weighted_user_vector(
         ml.food_id
         for ml in db.query(MealLog).filter(MealLog.user_id == user_id).all()
     }
+    preferred_ids = preferred_ids or set()
 
     vectors = []
     weights = []
     for food in foods:
         vec = food_vector(food)
-        fb = feedback.get(food.id)
-        if fb and fb.rating is not None:
+        # Preferred foods get the highest weight to strongly influence the vector
+        if food.id in preferred_ids:
+            weight = 1.5
+        elif (fb := feedback.get(food.id)) and fb.rating is not None:
             weight = fb.rating / 5.0
-        elif fb and fb.liked is True:
+        elif (fb := feedback.get(food.id)) and fb.liked is True:
             weight = 1.0
         elif food.id in logged_ids:
             weight = 0.75
@@ -176,7 +180,15 @@ def recommend_meals(
         )
     }
 
-    positive_ids = liked_ids | logged_ids
+    # Query user's preferred/favorite foods
+    preferred_ids = {
+        fp.food_id
+        for fp in db.query(FoodPreference).filter(
+            FoodPreference.user_id == user_id
+        )
+    }
+
+    positive_ids = liked_ids | logged_ids | preferred_ids
     candidates = [f for f in candidates if f.id not in disliked_ids]
 
     if not candidates:
@@ -186,7 +198,7 @@ def recommend_meals(
 
     content_scored: dict[int, tuple[float, str]] = {}
     if positive_ids:
-        user_vector = _build_weighted_user_vector(db, user_id, positive_ids)
+        user_vector = _build_weighted_user_vector(db, user_id, positive_ids, preferred_ids)
         if user_vector is not None:
             cand_vectors = np.array([food_vector(f) for f in candidates])
             sims = cosine_scores(user_vector, cand_vectors)
@@ -224,6 +236,12 @@ def recommend_meals(
         norm_content = content_score / content_max if content_max > 0 else 0.0
         norm_ml = ml_scores.get(food.id, 0.0) / ml_max if ml_max > 0 else 0.0
         final_score = 0.6 * norm_content + 0.4 * norm_ml
+
+        # Boost score for user's preferred/favorite foods
+        if food.id in preferred_ids:
+            final_score += 0.25
+            reason = "Your preferred food ❤️"
+
         blended.append((food, final_score, reason))
 
     blended.sort(key=lambda x: x[1], reverse=True)

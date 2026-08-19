@@ -145,6 +145,22 @@ class ApiClient {
             body: JSON.stringify({ user_id: userId, food_id: foodId, liked, rating })
         });
     }
+
+    // ── Food Preferences ──
+    async getPreferences(userId) {
+        return this.request(`/food-preferences/${userId}`);
+    }
+    async addPreference(userId, foodId) {
+        return this.request('/food-preferences', {
+            method: 'POST',
+            body: JSON.stringify({ user_id: userId, food_id: foodId })
+        });
+    }
+    async removePreference(userId, foodId) {
+        return this.request(`/food-preferences/${userId}/${foodId}`, {
+            method: 'DELETE'
+        });
+    }
 }
 
 const api = new ApiClient();

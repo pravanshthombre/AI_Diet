@@ -51,11 +51,14 @@ const mealplan = {
                 foods.forEach(item => {
                     const food = item.food;
                     const dietBadge = food.diet_type === 'non_vegetarian' ? 'non-veg' : food.diet_type === 'vegan' ? 'vegan' : 'veg';
+                    const isPreferred = (item.reason || '').includes('preferred');
+                    const preferredBadge = isPreferred ? '<span class="badge preferred" style="background: #fee2e2; color: #dc2626; font-weight: 700;">❤️ Preferred</span>' : '';
                     html += `
-                        <div class="food-card">
+                        <div class="food-card${isPreferred ? ' food-preferred' : ''}">
                             <div class="food-header">
                                 <span class="food-name">${food.name}</span>
                                 <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                    ${preferredBadge}
                                     <span class="badge ${dietBadge}">${food.diet_type.replace('_', '-')}</span>
                                     <span class="badge region">${food.region}</span>
                                 </div>

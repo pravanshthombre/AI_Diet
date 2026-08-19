@@ -196,6 +196,24 @@ class FeedbackCreate(BaseModel):
     rating: Optional[int] = None
 
 
+# ---- Food Preferences ----
+class FoodPreferenceCreate(BaseModel):
+    user_id: int
+    food_id: int
+    meal_slot: Optional[str] = ""
+
+
+class FoodPreferenceOut(BaseModel):
+    id: int
+    user_id: int
+    food_id: int
+    meal_slot: str
+    food: FoodOut
+
+    class Config:
+        from_attributes = True
+
+
 # ---- Nutrition Gap ----
 class NutritionGapItem(BaseModel):
     nutrient: str

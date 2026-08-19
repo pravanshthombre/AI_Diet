@@ -358,6 +358,83 @@ def submit_feedback(entry: schemas.FeedbackCreate, db: Session = Depends(get_db)
 
 
 # ═══════════════════════════════════════════════════════════════════
+# FOOD PREFERENCES (Favorite Foods for Diet Plan Prioritization)
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/food-preferences/{user_id}")
+def get_food_preferences(user_id: int, db: Session = Depends(get_db)):
+    """List all preferred/favorite foods for a user."""
+    if not db.query(models.User).filter(models.User.id == user_id).first():
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prefs = (
+        db.query(models.FoodPreference)
+        .filter(models.FoodPreference.user_id == user_id)
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "user_id": p.user_id,
+            "food_id": p.food_id,
+            "meal_slot": p.meal_slot or "",
+            "food": schemas.FoodOut.model_validate(p.food),
+        }
+        for p in prefs
+    ]
+
+
+@app.post("/food-preferences")
+def add_food_preference(entry: schemas.FoodPreferenceCreate, db: Session = Depends(get_db)):
+    """Add a food to the user's preferred/favorite foods list."""
+    if not db.query(models.User).filter(models.User.id == entry.user_id).first():
+        raise HTTPException(status_code=404, detail="User not found")
+    if not db.query(models.Food).filter(models.Food.id == entry.food_id).first():
+        raise HTTPException(status_code=404, detail="Food not found")
+
+    # Check for duplicate
+    existing = (
+        db.query(models.FoodPreference)
+        .filter(
+            models.FoodPreference.user_id == entry.user_id,
+            models.FoodPreference.food_id == entry.food_id,
+        )
+        .first()
+    )
+    if existing:
+        return {"status": "already_preferred", "id": existing.id}
+
+    pref = models.FoodPreference(
+        user_id=entry.user_id,
+        food_id=entry.food_id,
+        meal_slot=entry.meal_slot or "",
+    )
+    db.add(pref)
+    db.commit()
+    db.refresh(pref)
+    return {"status": "preference_added", "id": pref.id}
+
+
+@app.delete("/food-preferences/{user_id}/{food_id}")
+def remove_food_preference(user_id: int, food_id: int, db: Session = Depends(get_db)):
+    """Remove a food from the user's preferred/favorite foods list."""
+    pref = (
+        db.query(models.FoodPreference)
+        .filter(
+            models.FoodPreference.user_id == user_id,
+            models.FoodPreference.food_id == food_id,
+        )
+        .first()
+    )
+    if not pref:
+        raise HTTPException(status_code=404, detail="Food preference not found")
+
+    db.delete(pref)
+    db.commit()
+    return {"status": "preference_removed"}
+
+
+# ═══════════════════════════════════════════════════════════════════
 # NUTRITION GAPS
 # ═══════════════════════════════════════════════════════════════════
 

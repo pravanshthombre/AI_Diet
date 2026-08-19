@@ -1,9 +1,21 @@
 const foodsExplorer = {
     allFoods: [],
+    preferredFoodIds: new Set(),
 
     async init() {
         this.setupListeners();
+        await this.loadPreferences();
         await this.loadFoods();
+    },
+
+    async loadPreferences() {
+        if (!app.state.userId) return;
+        try {
+            const prefs = await api.getPreferences(app.state.userId);
+            this.preferredFoodIds = new Set(prefs.map(p => p.food_id));
+        } catch (e) {
+            console.error('Failed to load food preferences', e);
+        }
     },
 
     setupListeners() {
@@ -63,8 +75,12 @@ const foodsExplorer = {
 
         container.innerHTML = foods.map(food => {
             const dietBadge = food.diet_type === 'non_vegetarian' ? 'non-veg' : food.diet_type === 'vegan' ? 'vegan' : 'veg';
+            const isPreferred = this.preferredFoodIds.has(food.id);
+            const heartBtn = isPreferred
+                ? `<button class="btn btn-preferred small active" title="Remove from preferences" onclick="foodsExplorer.togglePreference(${food.id}, '${food.name.replace(/'/g, "\\'")}')">❤️ Preferred</button>`
+                : `<button class="btn btn-preferred small" title="Add to preferences" onclick="foodsExplorer.togglePreference(${food.id}, '${food.name.replace(/'/g, "\\'")}')">🤍 Prefer</button>`;
             return `
-                <div class="food-card">
+                <div class="food-card${isPreferred ? ' food-preferred' : ''}">
                     <div class="food-header">
                         <span class="food-name">${food.name}</span>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
@@ -81,11 +97,35 @@ const foodsExplorer = {
                     </div>
                     <div class="food-footer">
                         <span style="font-weight: 800; color: var(--primary-800); font-size: 1rem;">₹${food.price_inr_per_serving} <small style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">/ serving</small></span>
-                        <button class="btn btn-outline small" onclick="foodsExplorer.quickLog(${food.id}, '${food.name.replace(/'/g, "\\'")}')">+ Log Meal</button>
+                        <div style="display: flex; gap: 6px;">
+                            ${heartBtn}
+                            <button class="btn btn-outline small" onclick="foodsExplorer.quickLog(${food.id}, '${food.name.replace(/'/g, "\\'")}')"">+ Log Meal</button>
+                        </div>
                     </div>
                 </div>
             `;
         }).join('');
+    },
+
+    async togglePreference(foodId, foodName) {
+        if (!app.state.userId) {
+            app.showToast('Please set up or select a profile first', 'error');
+            return;
+        }
+        try {
+            if (this.preferredFoodIds.has(foodId)) {
+                await api.removePreference(app.state.userId, foodId);
+                this.preferredFoodIds.delete(foodId);
+                app.showToast(`Removed "${foodName}" from preferences`);
+            } else {
+                await api.addPreference(app.state.userId, foodId);
+                this.preferredFoodIds.add(foodId);
+                app.showToast(`Added "${foodName}" to preferences! ❤️ AI diet plan will prioritize it.`);
+            }
+            this.renderFoods(this.allFoods);
+        } catch (e) {
+            app.showToast(`Failed to update preference for ${foodName}`, 'error');
+        }
     },
 
     async quickLog(foodId, foodName) {
