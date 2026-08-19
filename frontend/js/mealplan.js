@@ -145,32 +145,61 @@ const mealplan = {
     },
 
     async substitute(slot, foodId) {
-        app.showToast('Finding Indian cuisine alternatives...');
+        // Show loading modal immediately
+        const loadingModalId = `sub-modal-${Date.now()}`;
+        this.showSubModalLoading(loadingModalId);
+
         try {
             const subs = await api.request(`/diet-plan/${app.state.userId}/substitute`, {
                 method: 'POST',
                 body: JSON.stringify({ meal_slot: slot, food_id: foodId, reason: "user requested swap" })
             });
 
+            const modal = document.getElementById(loadingModalId);
+            if (!modal) return; // User closed it early
+
             if (subs && subs.length > 0) {
-                // Store substitutes temporarily to apply them later
                 this.currentSubs = subs;
-                this.showSubModal(slot, foodId, subs);
+                this.updateSubModalContent(modal, slot, foodId, subs);
             } else {
+                modal.remove();
                 app.showToast('No direct substitute matches found for your criteria.', 'info');
             }
         } catch (e) {
             console.error('Substitute error', e);
+            const modal = document.getElementById(loadingModalId);
+            if (modal) modal.remove();
             app.showToast('Could not load alternatives', 'error');
         }
     },
 
-    showSubModal(slot, originalFoodId, subs) {
+    showSubModalLoading(modalId) {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
+        modal.id = modalId;
         modal.onclick = (e) => {
             if (e.target === modal) modal.remove();
         };
+
+        const skeletons = Array(3).fill(`
+            <div class="shimmer-skeleton" style="height: 100px; margin-bottom: 12px; border-radius: var(--radius-md);"></div>
+        `).join('');
+
+        modal.innerHTML = `
+            <div class="modal-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--primary-900);">Available Substitutions</h3>
+                    <button class="btn btn-secondary small" onclick="this.closest('.modal-overlay').remove()">✕</button>
+                </div>
+                <div id="sub-modal-content-area">${skeletons}</div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    },
+
+    updateSubModalContent(modal, slot, originalFoodId, subs) {
+        const contentArea = modal.querySelector('#sub-modal-content-area');
+        if (!contentArea) return;
 
         let itemsHtml = subs.map((s, index) => {
             const f = s.food;
@@ -190,16 +219,7 @@ const mealplan = {
             `;
         }).join('');
 
-        modal.innerHTML = `
-            <div class="modal-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--primary-900);">Available Substitutions</h3>
-                    <button class="btn btn-secondary small" onclick="this.closest('.modal-overlay').remove()">✕</button>
-                </div>
-                <div>${itemsHtml}</div>
-            </div>
-        `;
-        document.body.appendChild(modal);
+        contentArea.innerHTML = itemsHtml;
     },
 
     applySwap(slot, originalFoodId, subIndex, element) {
