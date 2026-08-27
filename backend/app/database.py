@@ -1,74 +1,74 @@
 """
 SQLAlchemy database engine and session management.
-Uses SQLite by default; set DATABASE_URL in .env or environment for Supabase / PostgreSQL.
+
+Resolution order:
+  1. If DATABASE_URL is set, use it (PostgreSQL on Supabase in production).
+     The `postgres://` scheme is normalized to `postgresql://`, and SSL is
+     auto-enabled for remote hosts (non-localhost / non-127.0.0.1).
+  2. Otherwise, fall back to a local SQLite file at backend/nutricalc.db
+     so the test suite and local development work out of the box.
+
+The engine is created lazily on first import so misconfiguration never
+prevents the module from being imported (e.g., during pytest collection).
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Load .env from backend directory or project root
 load_dotenv()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./nutricalc.db",
-).strip()
 
-# Normalize schema prefix (SQLAlchemy 1.4+ requires postgresql:// instead of postgres://)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+def _build_engine() -> Engine:
+    """Construct the SQLAlchemy engine using DATABASE_URL or a SQLite fallback."""
+    database_url = os.getenv("DATABASE_URL")
 
-# Ensure SSL mode for Supabase / remote PostgreSQL if not already present
-if "postgresql" in DATABASE_URL and "sslmode" not in DATABASE_URL and "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
-    sep = "&" if "?" in DATABASE_URL else "?"
-    DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
+    if database_url:
+        database_url = database_url.strip()
 
-# Connect arguments
-connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+        # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-_is_postgres = "postgresql" in DATABASE_URL
-engine = None
+        # Ensure SSL for remote Postgres (Supabase) unless explicitly disabled
+        if (
+            "postgresql" in database_url
+            and "sslmode" not in database_url
+            and "localhost" not in database_url
+            and "127.0.0.1" not in database_url
+        ):
+            sep = "&" if "?" in database_url else "?"
+            database_url = f"{database_url}{sep}sslmode=require"
 
-if _is_postgres:
-    try:
-        temp_engine = create_engine(
-            DATABASE_URL,
-            connect_args=connect_args,
+        return create_engine(
+            database_url,
             pool_pre_ping=True,
             pool_recycle=280,
             pool_size=5,
             max_overflow=10,
         )
-        # Test connection with 5-second timeout
-        with temp_engine.connect() as conn:
-            pass
-        engine = temp_engine
-        print("[DATABASE] Successfully connected to PostgreSQL (Supabase)!")
-    except Exception as pg_err:
-        print(f"[DATABASE WARNING] Could not connect to PostgreSQL ({pg_err}).")
-        print("[DATABASE] Falling back to SQLite to keep service online.")
-        _is_postgres = False
 
-if not engine:
-    from sqlalchemy.pool import StaticPool
-    engine = create_engine(
-        "sqlite:///./nutricalc.db",
+    # Fallback: local SQLite file in the backend directory.
+    sqlite_path = Path(__file__).resolve().parent.parent / "nutricalc.db"
+    return create_engine(
+        f"sqlite:///{sqlite_path}",
         connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
+        pool_pre_ping=True,
     )
-    print("[DATABASE] Running on local SQLite engine.")
 
+
+engine: Engine = _build_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-
 def get_db():
+    """FastAPI dependency that yields a database session."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
