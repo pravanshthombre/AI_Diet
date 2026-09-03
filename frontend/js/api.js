@@ -192,6 +192,37 @@ class ApiClient {
             method: 'DELETE'
         });
     }
+
+    // ── Vision / Food Image Analysis ──
+    async analyzeFoodImage(formData) {
+        const base = this.getBaseUrl();
+        const url = `${base}/vision/analyze-plate`;
+        const headers = {};
+        if (typeof authManager !== 'undefined' && authManager.getAccessToken()) {
+            headers['Authorization'] = `Bearer ${authManager.getAccessToken()}`;
+        }
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: formData  // FormData with 'image' field — no Content-Type header (browser sets multipart boundary)
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || 'Food image analysis failed');
+        }
+        return response.json();
+    }
+
+    async calibrateNutrition(payload) {
+        return this.request('/vision/calibrate', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    }
+
+    async getPrepStyles() {
+        return this.request('/vision/prep-styles');
+    }
 }
 
 const api = new ApiClient();

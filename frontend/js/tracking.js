@@ -33,6 +33,9 @@ const tracking = {
             if (foodInput) {
                 foodInput.addEventListener('input', () => this.searchFoods(foodInput.value));
             }
+
+            // Initialize AI Food Scanner
+            this.initScanner();
         } catch (e) {
             console.error('Tracking init error', e);
         }
@@ -170,7 +173,210 @@ const tracking = {
         } catch (e) {
             app.showToast('Failed to log meal', 'error');
         }
+    },
+
+    // ═══════════════════════════════════════════════════════
+    // VISION: AI Food Scanner & IFCT Calibration
+    // ═══════════════════════════════════════════════════════
+
+    _visionResult: null,
+    _calibrationData: null,
+    _currentImageDataUrl: null,
+
+    initScanner() {
+        const cameraInput = document.getElementById('camera-food-input');
+        const uploadInput = document.getElementById('upload-food-input');
+        if (cameraInput) cameraInput.addEventListener('change', (e) => this.handleFoodImage(e));
+        if (uploadInput) uploadInput.addEventListener('change', (e) => this.handleFoodImage(e));
+    },
+
+    async handleFoodImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Show preview
+        const preview = document.getElementById('scanner-preview');
+        const previewImg = document.getElementById('scanner-preview-img');
+        const statusEl = document.getElementById('scanner-status');
+        preview.classList.remove('hidden');
+        statusEl.innerHTML = '<div class="scanner-spinner"></div><span>Analyzing plate with AI...</span>';
+
+        // Read as data URL for preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImg.src = e.target.result;
+            this._currentImageDataUrl = e.target.result;
+        };
+        reader.readAsDataURL(file);
+
+        // Send to backend
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            app.showToast('🔍 Analyzing food image...', 'info');
+            const result = await api.analyzeFoodImage(formData);
+            this._visionResult = result;
+
+            statusEl.innerHTML = `<span style="color: var(--primary-700); font-weight: 700;">✅ Detected: ${result.detected_dish} (${Math.round(result.confidence * 100)}% confidence)</span>`;
+
+            // Open calibration modal
+            this.openCalibrationModal(result);
+        } catch (err) {
+            console.error('Vision analysis error:', err);
+            statusEl.innerHTML = `<span style="color: var(--accent-coral); font-weight: 600;">❌ ${err.message || 'Analysis failed'}</span>`;
+            app.showToast('Food analysis failed: ' + err.message, 'error');
+        }
+
+        // Reset file input so same file can be re-selected
+        event.target.value = '';
+    },
+
+    openCalibrationModal(result) {
+        const modal = document.getElementById('modal-food-calibration');
+        if (!modal) return;
+
+        // Set detected food info
+        const nameEl = document.getElementById('calibration-food-name');
+        const confEl = document.getElementById('calibration-confidence');
+        const srcEl = document.getElementById('calibration-source');
+        const imgEl = document.getElementById('calibration-food-img');
+
+        nameEl.textContent = result.detected_dish;
+        confEl.textContent = `${Math.round(result.confidence * 100)}% confidence`;
+        confEl.style.background = result.confidence >= 0.9 ? '#dcfce7' : result.confidence >= 0.8 ? '#fef9c3' : '#fee2e2';
+        confEl.style.color = result.confidence >= 0.9 ? '#166534' : result.confidence >= 0.8 ? '#854d0e' : '#991b1b';
+        srcEl.textContent = `Source: ${result.detection_source.replace(/_/g, ' ')}`;
+
+        if (this._currentImageDataUrl) {
+            imgEl.src = this._currentImageDataUrl;
+        }
+
+        // Set portion slider to estimated
+        const portionSlider = document.getElementById('calibration-portion');
+        const portionVal = document.getElementById('calibration-portion-val');
+        portionSlider.value = result.estimated_portion_grams || 150;
+        portionVal.textContent = `${portionSlider.value}g`;
+
+        // Reset prep style
+        document.getElementById('calibration-prep').value = 'homestyle_sauteed';
+
+        // Render alternatives
+        const altContainer = document.getElementById('calibration-alternatives');
+        altContainer.innerHTML = '';
+        if (result.alternatives && result.alternatives.length > 0) {
+            altContainer.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px;">Or did you mean:</p>' +
+                result.alternatives.map(a =>
+                    `<button class="chip alt-chip" onclick="tracking.switchToAlternative(${a.id}, '${a.name.replace(/'/g, "\\'")}')">${a.name} (${a.calories} kcal)</button>`
+                ).join('');
+        }
+
+        // Show modal
+        modal.classList.remove('hidden');
+
+        // Initial calibration
+        this.recalibrateLive();
+    },
+
+    closeCalibrationModal() {
+        const modal = document.getElementById('modal-food-calibration');
+        if (modal) modal.classList.add('hidden');
+    },
+
+    async switchToAlternative(foodId, foodName) {
+        if (this._visionResult && this._visionResult.primary_match) {
+            this._visionResult.primary_match.id = foodId;
+            this._visionResult.primary_match.name = foodName;
+            this._visionResult.detected_dish = foodName;
+            document.getElementById('calibration-food-name').textContent = foodName;
+            this.recalibrateLive();
+        }
+    },
+
+    setPortionPreset(grams) {
+        const slider = document.getElementById('calibration-portion');
+        slider.value = grams;
+        document.getElementById('calibration-portion-val').textContent = `${grams}g`;
+        this.recalibrateLive();
+    },
+
+    async recalibrateLive() {
+        if (!this._visionResult || !this._visionResult.primary_match) return;
+
+        const portionGrams = parseFloat(document.getElementById('calibration-portion').value);
+        const prepStyle = document.getElementById('calibration-prep').value;
+        document.getElementById('calibration-portion-val').textContent = `${portionGrams}g`;
+
+        const foodId = this._visionResult.primary_match.id;
+        if (!foodId) {
+            // Use client-side estimation from baseline
+            const base = this._visionResult.primary_match.baseline_ifct;
+            const scale = portionGrams / 150;
+            document.getElementById('cal-live-val').textContent = Math.round(base.calories * scale);
+            document.getElementById('pro-live-val').textContent = Math.round(base.protein_g * scale) + 'g';
+            document.getElementById('carb-live-val').textContent = Math.round(base.carbs_g * scale) + 'g';
+            document.getElementById('fat-live-val').textContent = Math.round(base.fat_g * scale) + 'g';
+            return;
+        }
+
+        try {
+            const result = await api.calibrateNutrition({
+                food_id: foodId,
+                portion_grams: portionGrams,
+                prep_style: prepStyle,
+                additions: []
+            });
+            this._calibrationData = result;
+
+            // Update live macros
+            document.getElementById('cal-live-val').textContent = Math.round(result.calibrated.calories);
+            document.getElementById('pro-live-val').textContent = result.calibrated.protein_g + 'g';
+            document.getElementById('carb-live-val').textContent = result.calibrated.carbs_g + 'g';
+            document.getElementById('fat-live-val').textContent = result.calibrated.fat_g + 'g';
+
+            // Variance
+            const varianceEl = document.getElementById('calibration-variance');
+            const delta = result.variance.calorie_delta;
+            if (Math.abs(delta) > 5) {
+                varianceEl.innerHTML = `<span style="color: ${delta > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">${delta > 0 ? '▲' : '▼'} ${result.variance.explanation}</span>`;
+            } else {
+                varianceEl.innerHTML = '<span style="color: var(--text-muted);">≈ Matches IFCT baseline</span>';
+            }
+        } catch (err) {
+            console.error('Calibration error:', err);
+        }
+    },
+
+    async logCalibratedMeal() {
+        if (!this._visionResult || !this._visionResult.primary_match) {
+            app.showToast('No food detected to log', 'error');
+            return;
+        }
+
+        const foodId = this._visionResult.primary_match.id;
+        const mealSlot = document.getElementById('calibration-meal-slot').value;
+        const portionGrams = parseFloat(document.getElementById('calibration-portion').value);
+        const servings = portionGrams / 150;  // Scale relative to standard serving
+
+        if (!foodId) {
+            app.showToast('Could not match food to database', 'error');
+            return;
+        }
+
+        try {
+            await api.logMeal(parseInt(foodId), mealSlot, Math.round(servings * 10) / 10);
+            const cal = this._calibrationData ? Math.round(this._calibrationData.calibrated.calories) : '?';
+            app.showToast(`✅ Logged ${this._visionResult.detected_dish} (${cal} kcal) to ${mealSlot}!`);
+            this.closeCalibrationModal();
+
+            // Clear scanner preview
+            const preview = document.getElementById('scanner-preview');
+            if (preview) preview.classList.add('hidden');
+        } catch (err) {
+            app.showToast('Failed to log meal: ' + err.message, 'error');
+        }
     }
 };
 
 window.tracking = tracking;
+

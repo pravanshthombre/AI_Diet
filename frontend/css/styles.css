@@ -1725,3 +1725,302 @@ html, body {
     }
 }
 
+
+/* ==========================================================================
+   AI FOOD SCANNER & IFCT CALIBRATION
+   ========================================================================== */
+
+.vision-scanner-card {
+    background: linear-gradient(135deg, var(--primary-50), #f0fdf4, #ecfdf5);
+    border: 2px dashed var(--primary-300);
+    position: relative;
+    overflow: hidden;
+}
+
+.vision-scanner-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -30%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.scanner-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.scanner-badge {
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.scanner-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.scanner-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-weight: 700;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.scanner-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.scanner-preview {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.scanner-preview img {
+    max-height: 200px;
+    max-width: 100%;
+    border-radius: var(--radius-lg);
+    object-fit: cover;
+    border: 3px solid var(--primary-200);
+    box-shadow: var(--shadow-sm);
+}
+
+.scanner-status {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.scanner-spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid var(--primary-200);
+    border-top-color: var(--primary-600);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Calibration Modal ── */
+
+.calibration-modal {
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.calibration-modal-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--primary-900);
+}
+
+.calibration-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.calibration-detected {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    background: var(--bg-subtle);
+    padding: 12px;
+    border-radius: var(--radius-md);
+}
+
+.calibration-img-wrap {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 2px solid var(--primary-200);
+}
+
+.calibration-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.calibration-detected-info h4 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--primary-900);
+    margin-bottom: 4px;
+}
+
+.confidence-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.calibration-source-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.calibration-alternatives {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.alt-chip {
+    font-size: 0.78rem !important;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.alt-chip:hover {
+    background: var(--primary-100) !important;
+    color: var(--primary-800) !important;
+}
+
+.calibration-control {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    height: 6px;
+    accent-color: var(--primary-600);
+    cursor: pointer;
+}
+
+.slider-val {
+    min-width: 50px;
+    text-align: right;
+    font-weight: 800;
+    color: var(--primary-700);
+    font-size: 0.95rem;
+}
+
+.portion-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.portion-presets .chip {
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.portion-presets .chip:hover {
+    background: var(--primary-100);
+    color: var(--primary-800);
+}
+
+/* Live Macro Display */
+.calibration-macros {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.macro-badge {
+    text-align: center;
+    padding: 12px 6px;
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.macro-badge span {
+    font-size: 1.3rem;
+    font-weight: 800;
+}
+
+.macro-badge small {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.macro-badge.cal {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+}
+
+.macro-badge.pro {
+    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+    color: #9d174d;
+}
+
+.macro-badge.carb {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #1e40af;
+}
+
+.macro-badge.fat {
+    background: linear-gradient(135deg, #ffedd5, #fed7aa);
+    color: #9a3412;
+}
+
+.calibration-variance {
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-subtle);
+}
+
+@media (max-width: 480px) {
+    .calibration-macros {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .scanner-actions {
+        flex-direction: column;
+    }
+    .scanner-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

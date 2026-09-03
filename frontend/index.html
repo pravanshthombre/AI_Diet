@@ -268,6 +268,36 @@
                 </div>
 
                 <div class="tracker-grid">
+                    <!-- AI Food Scanner -->
+                    <div class="card vision-scanner-card" style="grid-column: 1 / -1;">
+                        <div class="scanner-header">
+                            <div>
+                                <h2 class="card-title">📸 AI Food Scanner & Plate Analyzer</h2>
+                                <p class="card-desc">Take a photo or upload an image of your plate — AI identifies the dish and calibrates real-world nutrition from IFCT baselines</p>
+                            </div>
+                            <span class="scanner-badge">IFCT Calibrated</span>
+                        </div>
+                        <div class="scanner-actions">
+                            <input type="file" id="camera-food-input" accept="image/*" capture="environment" style="display: none;">
+                            <input type="file" id="upload-food-input" accept="image/*" style="display: none;">
+                            <button class="btn btn-primary scanner-btn" id="btn-scan-camera" onclick="document.getElementById('camera-food-input').click()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                Take Photo
+                            </button>
+                            <button class="btn btn-secondary scanner-btn" id="btn-scan-upload" onclick="document.getElementById('upload-food-input').click()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                Upload Image
+                            </button>
+                        </div>
+                        <div id="scanner-preview" class="scanner-preview hidden">
+                            <img id="scanner-preview-img" src="" alt="Food preview">
+                            <div id="scanner-status" class="scanner-status">
+                                <div class="scanner-spinner"></div>
+                                <span>Analyzing plate with AI...</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Water Tracker -->
                     <div class="card">
                         <h2 class="card-title">💧 Hydration Tracker</h2>
@@ -327,6 +357,85 @@
                     </div>
                 </div>
             </section>
+
+            <!-- ===== FOOD CALIBRATION MODAL ===== -->
+            <div id="modal-food-calibration" class="modal-overlay hidden">
+                <div class="modal-card calibration-modal">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 class="calibration-modal-title">🔬 Calibrate Nutrition</h3>
+                        <button onclick="tracking.closeCalibrationModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+                    </div>
+
+                    <div class="calibration-body">
+                        <!-- Detected Food Info -->
+                        <div class="calibration-detected">
+                            <div class="calibration-img-wrap">
+                                <img id="calibration-food-img" src="" alt="Detected food">
+                            </div>
+                            <div class="calibration-detected-info">
+                                <h4 id="calibration-food-name">Detecting...</h4>
+                                <span id="calibration-confidence" class="confidence-badge">—</span>
+                                <p id="calibration-source" class="calibration-source-text"></p>
+                            </div>
+                        </div>
+
+                        <!-- Alternative dishes -->
+                        <div id="calibration-alternatives" class="calibration-alternatives"></div>
+
+                        <!-- Portion Slider -->
+                        <div class="calibration-control">
+                            <label class="field-label">📏 Portion Size</label>
+                            <div class="slider-row">
+                                <input type="range" id="calibration-portion" min="50" max="400" value="150" step="10" oninput="tracking.recalibrateLive()">
+                                <span id="calibration-portion-val" class="slider-val">150g</span>
+                            </div>
+                            <div class="portion-presets">
+                                <button class="chip" onclick="tracking.setPortionPreset(80)">🫓 1 Roti (80g)</button>
+                                <button class="chip" onclick="tracking.setPortionPreset(150)">🥣 1 Katori (150g)</button>
+                                <button class="chip" onclick="tracking.setPortionPreset(200)">🍚 1 Cup Rice (200g)</button>
+                                <button class="chip" onclick="tracking.setPortionPreset(300)">🍛 Large Bowl (300g)</button>
+                            </div>
+                        </div>
+
+                        <!-- Cooking Style -->
+                        <div class="calibration-control">
+                            <label class="field-label">🍳 Cooking Style</label>
+                            <select id="calibration-prep" onchange="tracking.recalibrateLive()">
+                                <option value="steamed_boiled">Steamed / Boiled (No added fat)</option>
+                                <option value="homestyle_sauteed" selected>Home-style (Standard IFCT)</option>
+                                <option value="restaurant_rich">Restaurant / Dhaba (Rich Ghee/Butter)</option>
+                                <option value="deep_fried">Deep Fried / Extra Crispy</option>
+                            </select>
+                        </div>
+
+                        <!-- Live Macro Display -->
+                        <div class="calibration-macros">
+                            <div class="macro-badge cal"><span id="cal-live-val">—</span><small>kcal</small></div>
+                            <div class="macro-badge pro"><span id="pro-live-val">—</span><small>Protein</small></div>
+                            <div class="macro-badge carb"><span id="carb-live-val">—</span><small>Carbs</small></div>
+                            <div class="macro-badge fat"><span id="fat-live-val">—</span><small>Fat</small></div>
+                        </div>
+
+                        <!-- Variance indicator -->
+                        <div id="calibration-variance" class="calibration-variance"></div>
+
+                        <!-- Meal slot for logging -->
+                        <div class="calibration-control">
+                            <label class="field-label">🕐 Meal Slot</label>
+                            <select id="calibration-meal-slot">
+                                <option value="breakfast">Breakfast</option>
+                                <option value="lunch" selected>Lunch</option>
+                                <option value="snack">Snack</option>
+                                <option value="dinner">Dinner</option>
+                            </select>
+                        </div>
+
+                        <button id="btn-log-calibrated" class="btn btn-primary" style="width: 100%; margin-top: 12px; font-size: 1rem;" onclick="tracking.logCalibratedMeal()">
+                            ✅ Add to Today's Food Log
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <!-- ================= FOOD EXPLORER VIEW ================= -->
             <section id="foods" class="view hidden">

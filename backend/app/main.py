@@ -19,7 +19,8 @@ Run:
     uvicorn app.main:app --reload
 """
 import os
-from fastapi import FastAPI, Depends, HTTPException, Query
+import base64
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -34,6 +35,8 @@ from .meal_planner import generate_daily_plan
 from .substitution import find_substitutes
 from .nutrition_gap import calculate_nutrition_gaps
 from .chat import process_chat
+from .vision import analyze_food_image
+from .calibration import calibrate_food_nutrition, PREPARATION_MODIFIERS, ADD_ON_MODIFIERS
 
 app = FastAPI(
     title="NutriCalc API",
@@ -566,6 +569,64 @@ def get_weight_history(limit: int = 30, db: Session = Depends(get_db), current_u
 @app.post("/chat")
 def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return process_chat(db, current_user.id, req.message)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# VISION: FOOD IMAGE ANALYSIS & DYNAMIC IFCT CALIBRATION
+# ═══════════════════════════════════════════════════════════════════
+
+@app.post("/vision/analyze-plate")
+async def vision_analyze_plate(
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Analyze an uploaded food photo and identify Indian dishes with IFCT baselines."""
+    image_bytes = await image.read()
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    result = await analyze_food_image(
+        db=db,
+        image_bytes=image_bytes,
+        image_base64=image_b64,
+        filename=image.filename,
+    )
+    return result
+
+
+@app.post("/vision/calibrate")
+def vision_calibrate(
+    req: schemas.CalibrateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Calibrate IFCT baseline nutrition for real-world portion and preparation style."""
+    food = db.query(models.Food).filter(models.Food.id == req.food_id).first()
+    if not food:
+        raise HTTPException(status_code=404, detail="Food not found in database")
+    return calibrate_food_nutrition(
+        food=food,
+        portion_grams=req.portion_grams,
+        serving_multiplier=req.serving_multiplier,
+        prep_style=req.prep_style,
+        additions=req.additions or [],
+    )
+
+
+@app.get("/vision/prep-styles")
+def vision_prep_styles():
+    """Returns all available preparation style modifiers and add-on options."""
+    return {
+        "prep_styles": {
+            k: {"label": v["label"], "desc": v["desc"],
+                "fat_multiplier": v["fat_multiplier"],
+                "calorie_multiplier": v["calorie_multiplier"]}
+            for k, v in PREPARATION_MODIFIERS.items()
+        },
+        "add_ons": {
+            k: {"label": v["label"], "cal": v["cal"], "fat": v["fat"]}
+            for k, v in ADD_ON_MODIFIERS.items()
+        }
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════
