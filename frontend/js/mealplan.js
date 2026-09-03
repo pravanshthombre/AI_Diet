@@ -2,7 +2,17 @@ const mealplan = {
     planData: null,
 
     async init() {
-        if (!app.state.user) return;
+        // Try loading user if not already loaded
+        if (!app.state.user && app.state.userId) {
+            await app.loadUser();
+        }
+        if (!app.state.user) {
+            const container = document.getElementById('mealplan-content');
+            if (container) {
+                container.innerHTML = `<p style="color:var(--accent-coral); text-align:center; padding: 2rem; font-weight: 600;">Please complete onboarding first to generate your diet plan.</p>`;
+            }
+            return;
+        }
         await this.loadPlan();
         document.getElementById('btn-regen-plan').onclick = () => {
             app.showToast('Regenerating customized daily plan...');
@@ -22,7 +32,7 @@ const mealplan = {
         `;
 
         try {
-            const plan = await api.getDietPlan(app.state.userId);
+            const plan = await api.getDietPlan();
             this.planData = plan;
             this.renderPlan();
         } catch (e) {

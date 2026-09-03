@@ -3,6 +3,9 @@ const tracking = {
     waterGoalMl: 2500,
 
     async init() {
+        if (!app.state.user && app.state.userId) {
+            await app.loadUser();
+        }
         if (!app.state.user) return;
         const user = app.state.user;
 
@@ -11,7 +14,7 @@ const tracking = {
             this.waterGoalMl = (waterTarget.liters_per_day || 2.5) * 1000;
 
             const today = new Date().toISOString().split('T')[0];
-            const track = await api.getTracking(user.id, today);
+            const track = await api.getTracking(today);
             this.waterAmount = track.actual_water_ml || 0;
             this.updateWaterUI();
 

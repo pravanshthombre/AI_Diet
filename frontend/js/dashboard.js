@@ -1,5 +1,8 @@
 const dashboard = {
     async init() {
+        if (!app.state.user && app.state.userId) {
+            await app.loadUser();
+        }
         if (!app.state.user) return;
         const user = app.state.user;
 
@@ -44,7 +47,7 @@ const dashboard = {
     async loadTodayProgress(user) {
         try {
             const today = new Date().toISOString().split('T')[0];
-            const tracking = await api.getTracking(user.id, today);
+            const tracking = await api.getTracking(today);
 
             const calPct = Math.min(100, (tracking.actual_calories / (tracking.target_calories || 2000)) * 100) || 0;
             const proPct = Math.min(100, (tracking.actual_protein / (tracking.target_protein || 60)) * 100) || 0;
