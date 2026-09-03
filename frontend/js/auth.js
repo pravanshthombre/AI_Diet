@@ -186,6 +186,10 @@ class AuthManager {
             }
 
             app.showToast('Welcome back! Signed in successfully.', 'success');
+            if (data?.session) {
+                this.session = data.session;
+                this.user = data.user;
+            }
             if (data?.user) {
                 await this.onUserAuthenticated(data.user);
             }
@@ -252,6 +256,8 @@ class AuthManager {
             }
 
             if (data?.session) {
+                this.session = data.session;
+                this.user = data.user;
                 app.showToast('Account created successfully!', 'success');
                 await this.onUserAuthenticated(data.user, fullName);
             } else if (data?.user && !data.session) {
