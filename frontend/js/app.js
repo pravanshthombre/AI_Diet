@@ -26,10 +26,10 @@ const app = {
             }
         } else {
             const hash = window.location.hash.replace('#', '');
-            if (hash === 'onboarding' || hash === 'foods') {
+            if (hash === 'foods') {
                 this.navigate(hash);
             } else {
-                this.navigate('auth');
+                this.navigate('onboarding');
             }
         }
     },
@@ -37,7 +37,7 @@ const app = {
     async loadUser() {
         if (!this.state.userId) return;
         try {
-            this.state.user = await api.getUser(this.state.userId);
+            this.state.user = await api.getUser();
             this.updateHeaderProfile();
         } catch (e) {
             console.error('Failed to load user', e);
@@ -45,7 +45,7 @@ const app = {
             this.state.userId = null;
             this.state.user = null;
             this.updateHeaderProfile();
-            this.navigate('auth');
+            this.navigate('onboarding');
         }
     },
 
@@ -53,37 +53,29 @@ const app = {
         const badgeContainer = document.getElementById('user-badge-container');
         const badgeAvatar = document.getElementById('badge-avatar');
         const badgeUsername = document.getElementById('badge-username');
-        const loginBtn = document.getElementById('btn-header-login');
         const restartBtn = document.getElementById('btn-restart-onboarding');
 
-        const currentUser = this.state.user || this.state.supabaseUser;
+        const currentUser = this.state.user;
 
         if (currentUser) {
             if (badgeContainer) badgeContainer.classList.remove('hidden');
-            if (loginBtn) loginBtn.classList.add('hidden');
             if (restartBtn) restartBtn.classList.remove('hidden');
             
-            const name = this.state.user?.name || this.state.supabaseUser?.user_metadata?.full_name || this.state.supabaseUser?.email?.split('@')[0] || 'User';
+            const name = this.state.user?.name || 'User';
             if (badgeAvatar) badgeAvatar.innerText = name.charAt(0).toUpperCase();
             if (badgeUsername) badgeUsername.innerText = name;
         } else {
             if (badgeContainer) badgeContainer.classList.add('hidden');
-            if (loginBtn) loginBtn.classList.remove('hidden');
             if (restartBtn) restartBtn.classList.add('hidden');
         }
     },
 
     async logout() {
-        if (typeof authManager !== 'undefined') {
-            await authManager.signOut();
-        } else {
-            localStorage.removeItem('ai_diet_user_id');
-            this.state.userId = null;
-            this.state.user = null;
-            this.state.supabaseUser = null;
-            this.updateHeaderProfile();
-            this.navigate('auth');
-        }
+        localStorage.removeItem('ai_diet_user_id');
+        this.state.userId = null;
+        this.state.user = null;
+        this.updateHeaderProfile();
+        this.navigate('onboarding');
     },
 
     resetUser() {
@@ -263,9 +255,9 @@ const app = {
 
     showView(viewId) {
         // Fallback for unauthenticated users
-        if (!this.state.userId && !this.state.supabaseUser && viewId !== 'auth' && viewId !== 'onboarding' && viewId !== 'foods') {
-            viewId = 'auth';
-            window.location.hash = 'auth';
+        if (!this.state.userId && viewId !== 'onboarding' && viewId !== 'foods') {
+            viewId = 'onboarding';
+            window.location.hash = 'onboarding';
         }
 
         // Hide all views
@@ -273,7 +265,7 @@ const app = {
         
         // Update nav state
         const bottomNav = document.getElementById('bottom-nav');
-        if (viewId === 'auth' || viewId === 'onboarding') {
+        if (viewId === 'onboarding') {
             if (bottomNav) bottomNav.classList.add('hidden');
         } else {
             if (bottomNav) bottomNav.classList.remove('hidden');
@@ -298,7 +290,6 @@ const app = {
             
             // Trigger view-specific init
             const views = {
-                auth: typeof authManager !== 'undefined' ? authManager : null,
                 onboarding: typeof onboarding !== 'undefined' ? onboarding : null,
                 dashboard: typeof dashboard !== 'undefined' ? dashboard : null,
                 mealplan: typeof mealplan !== 'undefined' ? mealplan : null,

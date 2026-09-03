@@ -10,8 +10,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
-    <!-- Supabase JS Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="page-bg" aria-hidden="true"></div>
@@ -21,7 +19,7 @@
 
         <!-- Main Navigation Header -->
         <header id="app-brand" class="app-header">
-            <div class="brand-container" onclick="app.navigate(app.state.userId ? 'dashboard' : 'auth')">
+            <div class="brand-container" onclick="app.navigate(app.state.userId ? 'dashboard' : 'onboarding')">
                 <div class="brand-icon-box">🌿</div>
                 <div class="brand-text">
                     <span class="brand-name">NutriCalc</span>
@@ -39,8 +37,6 @@
             </nav>
 
             <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
-                <button id="btn-header-login" class="btn btn-primary small" onclick="app.navigate('auth')" style="padding: 6px 14px; font-size: 0.85rem; font-weight: 700;">🔐 Sign In</button>
-                <button id="btn-supabase-config" class="btn btn-secondary small" onclick="authManager.openSupabaseConfigModal()" title="Supabase Auth Settings" style="padding: 6px 10px; font-size: 0.8rem;">⚡ Supabase</button>
                 <button id="btn-api-config" class="btn btn-secondary small" onclick="app.openApiModal()" title="Configure Backend API Server" style="padding: 6px 10px; font-size: 0.8rem;">⚙️ Server</button>
                 <div id="user-badge-container" class="user-profile-badge hidden" onclick="app.openProfileModal()">
                     <div class="avatar-initial" id="badge-avatar">U</div>
@@ -52,184 +48,7 @@
         </header>
 
         <main id="view-container">
-            <!-- ================= AUTH / LOGIN & SIGN-IN VIEW ================= -->
-            <section id="auth" class="view">
-                <div class="auth-container">
-                    <!-- Left / Intro Hero Column -->
-                    <div class="auth-hero-card">
-                        <div class="auth-badge-pill">
-                            <span class="pulse-dot"></span>
-                            <span>Powered by Supabase Auth</span>
-                        </div>
-                        <h1 class="auth-hero-title">Intelligent Nutrition for Indian Lifestyles</h1>
-                        <p class="auth-hero-sub">
-                            Log in or create your account to unlock AI-customized meal plans, regional recipe databases, calorie tracking, and real-time dietitian chat.
-                        </p>
-                        
-                        <div class="auth-features-list">
-                            <div class="auth-feature-item">
-                                <div class="auth-feature-icon">🍱</div>
-                                <div class="auth-feature-text">
-                                    <strong>950+ Regional Indian Foods</strong>
-                                    <span>North, South, East, West &amp; Jain friendly databases</span>
-                                </div>
-                            </div>
-                            <div class="auth-feature-item">
-                                <div class="auth-feature-icon">🎯</div>
-                                <div class="auth-feature-text">
-                                    <strong>Clinical Calorie &amp; Macro Precision</strong>
-                                    <span>Calculated to your TDEE, goal weight, and daily routine</span>
-                                </div>
-                            </div>
-                            <div class="auth-feature-item">
-                                <div class="auth-feature-icon">💬</div>
-                                <div class="auth-feature-text">
-                                    <strong>24/7 AI Dietitian Assistant</strong>
-                                    <span>Instant answers on nutrition, substitutions, and tips</span>
-                                </div>
-                            </div>
-                        </div>
 
-                        <div class="auth-quote-card">
-                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🥗</div>
-                            <p style="font-style: italic; font-size: 0.88rem; color: var(--text-main); margin-bottom: 6px;">
-                                "NutriCalc transformed my routine with regional Maharashtrian &amp; South Indian plans that fit my exact calorie goals."
-                            </p>
-                            <span style="font-size: 0.78rem; font-weight: 700; color: var(--primary-700);">— Verified Member</span>
-                        </div>
-                    </div>
-
-                    <!-- Right / Auth Form Card -->
-                    <div class="auth-form-card">
-                        <!-- Brand header inside card for mobile -->
-                        <div class="auth-card-header">
-                            <div class="auth-card-logo">🌿</div>
-                            <h2 class="auth-card-title">Welcome to NutriCalc</h2>
-                            <p class="auth-card-subtitle">Sign in or create your account to continue</p>
-                        </div>
-
-                        <!-- Auth Mode Tabs -->
-                        <div class="auth-tabs">
-                            <button id="tab-btn-signin" class="auth-tab active" onclick="authManager.switchTab('signin')">Sign In</button>
-                            <button id="tab-btn-signup" class="auth-tab" onclick="authManager.switchTab('signup')">Create Account</button>
-                        </div>
-
-                        <!-- SIGN IN CARD -->
-                        <div id="auth-card-signin" class="auth-tab-content">
-                            <form id="form-signin" onsubmit="return false;">
-                                <div id="signin-error-msg" class="auth-error-box hidden"></div>
-
-                                <div class="input-group">
-                                    <label class="field-label" for="signin-email">Email Address</label>
-                                    <div class="input-with-icon">
-                                        <span class="field-icon">📧</span>
-                                        <input type="email" id="signin-email" placeholder="you@example.com" required autocomplete="email">
-                                    </div>
-                                </div>
-
-                                <div class="input-group" style="margin-top: 14px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                        <label class="field-label" for="signin-password" style="margin-bottom: 0;">Password</label>
-                                        <a href="javascript:void(0)" onclick="authManager.openForgotPasswordModal()" class="auth-link-subtle">Forgot password?</a>
-                                    </div>
-                                    <div class="input-with-icon">
-                                        <span class="field-icon">🔒</span>
-                                        <input type="password" id="signin-password" placeholder="••••••••" required autocomplete="current-password">
-                                        <button type="button" class="btn-toggle-pass" onclick="authManager.togglePasswordVisibility('signin-password', 'signin-pass-toggle-icon')" title="Toggle password visibility">
-                                            <span id="signin-pass-toggle-icon">👁️</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div style="display: flex; align-items: center; gap: 8px; margin: 14px 0 20px 0;">
-                                    <input type="checkbox" id="signin-remember" checked style="accent-color: var(--primary-600); cursor: pointer; width: 16px; height: 16px;">
-                                    <label for="signin-remember" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">Remember me on this device</label>
-                                </div>
-
-                                <button type="submit" id="btn-signin-submit" class="btn btn-primary auth-submit-btn">
-                                    Sign In to NutriCalc
-                                </button>
-                            </form>
-
-                            <div class="auth-divider">
-                                <span>OR EXPLORE</span>
-                            </div>
-
-                            <button type="button" class="btn btn-secondary auth-demo-btn" onclick="authManager.handleDemoLogin()">
-                                ✨ Explore Sample Profile (Quick Demo)
-                            </button>
-
-                            <p style="text-align: center; margin-top: 18px; font-size: 0.85rem; color: var(--text-muted);">
-                                Don't have an account? <a href="javascript:void(0)" onclick="authManager.switchTab('signup')" style="color: var(--primary-700); font-weight: 700;">Sign up for free</a>
-                            </p>
-                        </div>
-
-                        <!-- SIGN UP CARD -->
-                        <div id="auth-card-signup" class="auth-tab-content hidden">
-                            <form id="form-signup" onsubmit="return false;">
-                                <div id="signup-error-msg" class="auth-error-box hidden"></div>
-
-                                <div class="input-group">
-                                    <label class="field-label" for="signup-name">Full Name</label>
-                                    <div class="input-with-icon">
-                                        <span class="field-icon">👤</span>
-                                        <input type="text" id="signup-name" placeholder="Rahul Sharma" required autocomplete="name">
-                                    </div>
-                                </div>
-
-                                <div class="input-group" style="margin-top: 14px;">
-                                    <label class="field-label" for="signup-email">Email Address</label>
-                                    <div class="input-with-icon">
-                                        <span class="field-icon">📧</span>
-                                        <input type="email" id="signup-email" placeholder="you@example.com" required autocomplete="email">
-                                    </div>
-                                </div>
-
-                                <div class="input-group" style="margin-top: 14px;">
-                                    <label class="field-label" for="signup-password">Password</label>
-                                    <div class="input-with-icon">
-                                        <span class="field-icon">🔒</span>
-                                        <input type="password" id="signup-password" placeholder="Min. 6 characters" required autocomplete="new-password">
-                                        <button type="button" class="btn-toggle-pass" onclick="authManager.togglePasswordVisibility('signup-password', 'signup-pass-toggle-icon')" title="Toggle password visibility">
-                                            <span id="signup-pass-toggle-icon">👁️</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="input-group" style="margin-top: 14px;">
-                                    <label class="field-label" for="signup-password-confirm">Confirm Password</label>
-                                    <div class="input-with-icon">
-                                        <span class="field-icon">🔒</span>
-                                        <input type="password" id="signup-password-confirm" placeholder="Re-enter password" required autocomplete="new-password">
-                                    </div>
-                                </div>
-
-                                <p style="font-size: 0.78rem; color: var(--text-muted); margin: 12px 0 18px 0; line-height: 1.4;">
-                                    By creating an account, your profile data is securely stored in <strong>Supabase</strong> with encrypted credentials.
-                                </p>
-
-                                <button type="submit" id="btn-signup-submit" class="btn btn-primary auth-submit-btn">
-                                    Create Free Account
-                                </button>
-                            </form>
-
-                            <p style="text-align: center; margin-top: 18px; font-size: 0.85rem; color: var(--text-muted);">
-                                Already have an account? <a href="javascript:void(0)" onclick="authManager.switchTab('signin')" style="color: var(--primary-700); font-weight: 700;">Sign in here</a>
-                            </p>
-                        </div>
-
-                        <!-- Supabase Security Badge Footer -->
-                        <div class="auth-security-footer">
-                            <div style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted);">
-                                <span>🔒 Supabase Auth (PostgreSQL Cloud)</span>
-                                <span style="opacity: 0.4;">·</span>
-                                <a href="javascript:void(0)" onclick="authManager.openSupabaseConfigModal()" style="color: var(--primary-700); font-weight: 600; text-decoration: underline;">Configure Keys</a>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            </section>
 
             <!-- ================= ONBOARDING VIEW ================= -->
             <section id="onboarding" class="view hidden">
@@ -674,83 +493,7 @@
                     ▶️ Continue to Dashboard
                 </button>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <button class="btn btn-secondary" onclick="app.restartProfile()" style="padding: 10px; font-size: 0.85rem; font-weight: 600; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                        🔄 Re-customize Diet
-                    </button>
-                    <button class="btn btn-secondary" onclick="authManager.openSupabaseConfigModal(); app.closeProfileModal();" style="padding: 10px; font-size: 0.85rem; font-weight: 600; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                        ⚡ Supabase Config
-                    </button>
-                </div>
 
-                <button class="btn" onclick="app.logout(); app.closeProfileModal();" style="width: 100%; padding: 12px; font-size: 0.92rem; font-weight: 700; border-radius: 12px; background: rgba(239, 68, 68, 0.1); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px;">
-                    🚪 Sign Out of Account
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Forgot Password Modal -->
-    <div id="modal-forgot-password" class="modal-overlay hidden">
-        <div class="modal-card" style="max-width: 400px; text-align: center;">
-            <div style="width: 54px; height: 54px; background: var(--primary-100); color: var(--primary-600); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 12px auto;">
-                🔑
-            </div>
-            <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--primary-900); margin-bottom: 6px;">Reset Password</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 18px;">
-                Enter your registered Supabase email address and we'll send you a password recovery link.
-            </p>
-
-            <form id="form-forgot-password" onsubmit="return false;">
-                <div class="input-group" style="text-align: left; margin-bottom: 14px;">
-                    <label class="field-label" for="forgot-email">Email Address</label>
-                    <div class="input-with-icon">
-                        <span class="field-icon">📧</span>
-                        <input type="email" id="forgot-email" placeholder="you@example.com" required>
-                    </div>
-                </div>
-
-                <div id="forgot-status-msg" style="margin-bottom: 14px; font-size: 0.85rem;"></div>
-
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="authManager.closeForgotPasswordModal()" style="flex: 1;">Cancel</button>
-                    <button type="submit" id="btn-forgot-submit" class="btn btn-primary" style="flex: 1.4;">Send Reset Link</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Supabase Settings Modal -->
-    <div id="modal-supabase-config" class="modal-overlay hidden">
-        <div class="modal-card" style="max-width: 460px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--primary-900);">⚡ Supabase Auth Setup</h3>
-                <button onclick="authManager.closeSupabaseConfigModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-muted);">&times;</button>
-            </div>
-            
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-                Your Supabase project credentials for authentication and user security.
-            </p>
-
-            <div class="input-group mb-3">
-                <label class="field-label" for="input-supabase-url">Supabase Project URL</label>
-                <input type="text" id="input-supabase-url" placeholder="https://gazqozzbookpqueplkpd.supabase.co" style="font-family: monospace; font-size: 0.85rem;">
-            </div>
-
-            <div class="input-group mb-3">
-                <label class="field-label" for="input-supabase-key">Supabase Public Anon Key</label>
-                <input type="password" id="input-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5..." style="font-family: monospace; font-size: 0.85rem;">
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
-                    Find this in Supabase Dashboard → Project Settings → API → <code>anon public key</code>.
-                </p>
-            </div>
-
-            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;">
-                <button class="btn btn-secondary" onclick="authManager.closeSupabaseConfigModal()" style="font-size: 0.85rem;">Cancel</button>
-                <button class="btn btn-primary" onclick="authManager.saveSupabaseConfig()" style="font-size: 0.85rem;">Save &amp; Apply</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Goal Reached Modal -->
     <div class="modal-overlay hidden" id="goalModal">
