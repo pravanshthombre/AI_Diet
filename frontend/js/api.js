@@ -20,6 +20,11 @@ class ApiClient {
             return 'http://127.0.0.1:8000';
         }
 
+        // Local file execution
+        if (window.location.protocol === 'file:') {
+            return 'http://127.0.0.1:8000';
+        }
+
         // Default to cloud backend on Vercel / Netlify / external hosting
         return this.fallbackRenderUrl;
     }
