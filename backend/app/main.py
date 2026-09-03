@@ -91,8 +91,9 @@ def api_health():
 @app.post("/users", response_model=schemas.UserOut)
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), supabase_uid: str = Depends(get_supabase_uid)):
     data = user_in.model_dump()
+    target_uid = data.pop("supabase_uid", None) or supabase_uid
 
-    existing = db.query(models.User).filter(models.User.supabase_uid == supabase_uid).first()
+    existing = db.query(models.User).filter(models.User.supabase_uid == target_uid).first()
     if existing:
         for field, value in data.items():
             if value is not None:
@@ -101,7 +102,7 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), supa
         db.refresh(existing)
         return existing
 
-    user = models.User(**data, supabase_uid=supabase_uid)
+    user = models.User(**data, supabase_uid=target_uid)
     db.add(user)
     db.commit()
     db.refresh(user)

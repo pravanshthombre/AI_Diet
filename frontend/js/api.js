@@ -123,10 +123,22 @@ class ApiClient {
     }
 
     // ── Logging ──
-    async logMeal(foodId, mealSlot, servings) {
+    async logMeal(arg1, arg2, arg3, arg4) {
+        let foodId, mealSlot, servings;
+        if (arg4 !== undefined) {
+            // Called with (userId, foodId, mealSlot, servings)
+            foodId = arg2;
+            mealSlot = arg3;
+            servings = arg4;
+        } else {
+            // Called with (foodId, mealSlot, servings)
+            foodId = arg1;
+            mealSlot = arg2;
+            servings = arg3;
+        }
         return this.request('/log-meal', {
             method: 'POST',
-            body: JSON.stringify({ food_id: foodId, meal_slot: mealSlot, servings })
+            body: JSON.stringify({ food_id: foodId, meal_slot: mealSlot, servings: servings || 1.0 })
         });
     }
     async logWater(amountMl) {
@@ -143,8 +155,10 @@ class ApiClient {
     }
 
     // ── Tracking ──
-    async getTracking(dateStr) {
-        return this.request(`/tracking?date=${dateStr}`);
+    async getTracking(arg1, arg2) {
+        const dateStr = (arg2 !== undefined) ? arg2 : (arg1 || '');
+        const query = dateStr ? `?date=${encodeURIComponent(dateStr)}` : '';
+        return this.request(`/tracking${query}`);
     }
 
     // ── Chat ──

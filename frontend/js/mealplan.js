@@ -166,7 +166,7 @@ const mealplan = {
         this.showSubModalLoading(loadingModalId);
 
         try {
-            const subs = await api.request(`/diet-plan/${app.state.userId}/substitute`, {
+            const subs = await api.request(`/diet-plan/substitute`, {
                 method: 'POST',
                 body: JSON.stringify({ meal_slot: slot, food_id: foodId, reason: "user requested swap" })
             });
