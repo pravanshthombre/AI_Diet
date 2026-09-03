@@ -39,6 +39,8 @@ class User(Base):
     sleep_time = Column(String, default="23:00")
     exercise_time = Column(String, default="")
     meals_per_day = Column(Integer, default=4)
+    supabase_uid = Column(String, unique=True, index=True, nullable=True)
+    email = Column(String, index=True, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     meal_logs = relationship("MealLog", back_populates="user")

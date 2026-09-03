@@ -89,7 +89,19 @@ def api_health():
 
 @app.post("/users", response_model=schemas.UserOut)
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    user = models.User(**user_in.model_dump())
+    data = user_in.model_dump()
+    # If supabase_uid is supplied, check if existing user profile exists and update it
+    if data.get("supabase_uid"):
+        existing = db.query(models.User).filter(models.User.supabase_uid == data["supabase_uid"]).first()
+        if existing:
+            for field, value in data.items():
+                if value is not None:
+                    setattr(existing, field, value)
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+    user = models.User(**data)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -101,6 +113,22 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@app.get("/users/by-supabase/{supabase_uid}", response_model=schemas.UserOut)
+def get_user_by_supabase(supabase_uid: str, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.supabase_uid == supabase_uid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User profile not found for this Supabase account")
+    return user
+
+
+@app.get("/users/by-email/{email}", response_model=schemas.UserOut)
+def get_user_by_email(email: str, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User profile not found for this email")
     return user
 
 

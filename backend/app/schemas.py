@@ -25,6 +25,8 @@ class UserCreate(BaseModel):
     sleep_time: Optional[str] = "23:00"
     exercise_time: Optional[str] = ""
     meals_per_day: Optional[int] = 4
+    supabase_uid: Optional[str] = None
+    email: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -46,6 +48,8 @@ class UserOut(BaseModel):
     sleep_time: Optional[str] = "23:00"
     exercise_time: Optional[str] = ""
     meals_per_day: Optional[int] = 4
+    supabase_uid: Optional[str] = None
+    email: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -68,6 +72,8 @@ class UserUpdate(BaseModel):
     sleep_time: Optional[str] = None
     exercise_time: Optional[str] = None
     meals_per_day: Optional[int] = None
+    supabase_uid: Optional[str] = None
+    email: Optional[str] = None
 
 
 # ---- Food ----

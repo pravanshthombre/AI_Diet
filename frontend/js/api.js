@@ -47,6 +47,12 @@ class ApiClient {
         const base = this.getBaseUrl();
         const url = `${base}${endpoint}`;
         const headers = { 'Content-Type': 'application/json', ...options.headers };
+        
+        // Attach Supabase access token if available
+        if (typeof authManager !== 'undefined' && authManager.getAccessToken()) {
+            headers['Authorization'] = `Bearer ${authManager.getAccessToken()}`;
+        }
+
         const config = { ...options, headers };
 
         try {
@@ -82,6 +88,12 @@ class ApiClient {
     }
     async getUser(userId) {
         return this.request(`/users/${userId}`);
+    }
+    async getUserBySupabaseUid(uid) {
+        return this.request(`/users/by-supabase/${encodeURIComponent(uid)}`);
+    }
+    async getUserByEmail(email) {
+        return this.request(`/users/by-email/${encodeURIComponent(email)}`);
     }
     async updateUser(userId, userData) {
         return this.request(`/users/${userId}`, { method: 'PUT', body: JSON.stringify(userData) });

@@ -60,7 +60,35 @@ def _build_engine() -> Engine:
     )
 
 
+def ensure_schema_columns(target_engine: Engine):
+    """Auto-migrate missing columns for existing tables (Supabase PostgreSQL / SQLite)."""
+    try:
+        from sqlalchemy import text
+        with target_engine.connect() as conn:
+            # Check dialect
+            dialect_name = target_engine.dialect.name
+            if dialect_name == "postgresql":
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS supabase_uid VARCHAR;"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR;"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_supabase_uid ON users (supabase_uid);"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);"))
+                conn.commit()
+            elif dialect_name == "sqlite":
+                # Check existing columns in users table if table exists
+                cols_res = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+                existing_cols = {col[1] for col in cols_res}
+                if existing_cols:
+                    if "supabase_uid" not in existing_cols:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN supabase_uid TEXT;"))
+                    if "email" not in existing_cols:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN email TEXT;"))
+                conn.commit()
+    except Exception as e:
+        print(f"[SCHEMA NOTICE] Auto-migration check: {e}")
+
+
 engine: Engine = _build_engine()
+ensure_schema_columns(engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -72,3 +100,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

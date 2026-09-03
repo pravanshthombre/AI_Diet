@@ -3,6 +3,8 @@ const onboarding = {
     totalSteps: 8,
     data: {
         name: '',
+        email: '',
+        supabase_uid: '',
         age: 28,
         sex: 'male',
         height_cm: 172,
@@ -21,6 +23,14 @@ const onboarding = {
     },
 
     init() {
+        if (typeof authManager !== 'undefined' && authManager.getCurrentUser()) {
+            const u = authManager.getCurrentUser();
+            if (u.id) this.data.supabase_uid = u.id;
+            if (u.email) this.data.email = u.email;
+            if (!this.data.name && u.user_metadata?.full_name) {
+                this.data.name = u.user_metadata.full_name;
+            }
+        }
         this.renderStep();
         document.getElementById('btn-next').onclick = () => this.nextStep();
         document.getElementById('btn-prev').onclick = () => this.prevStep();

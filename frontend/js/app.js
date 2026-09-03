@@ -2,20 +2,35 @@ const app = {
     state: {
         userId: localStorage.getItem('ai_diet_user_id'),
         user: null,
+        supabaseUser: null,
         currentView: null
     },
 
     async init() {
         this.setupRouter();
         this.setupToast();
-        
+
+        // Initialize Supabase Auth Manager
+        if (typeof authManager !== 'undefined') {
+            authManager.init();
+        }
+
         // Initial route check
-        if (!this.state.userId) {
-            this.navigate('onboarding');
-        } else {
+        if (this.state.userId) {
             await this.loadUser();
             const hash = window.location.hash.replace('#', '') || 'dashboard';
-            this.navigate(hash);
+            if (hash === 'auth') {
+                this.navigate('dashboard');
+            } else {
+                this.navigate(hash);
+            }
+        } else {
+            const hash = window.location.hash.replace('#', '');
+            if (hash === 'onboarding' || hash === 'foods') {
+                this.navigate(hash);
+            } else {
+                this.navigate('auth');
+            }
         }
     },
 
@@ -29,7 +44,8 @@ const app = {
             localStorage.removeItem('ai_diet_user_id');
             this.state.userId = null;
             this.state.user = null;
-            this.navigate('onboarding');
+            this.updateHeaderProfile();
+            this.navigate('auth');
         }
     },
 
@@ -37,14 +53,36 @@ const app = {
         const badgeContainer = document.getElementById('user-badge-container');
         const badgeAvatar = document.getElementById('badge-avatar');
         const badgeUsername = document.getElementById('badge-username');
+        const loginBtn = document.getElementById('btn-header-login');
+        const restartBtn = document.getElementById('btn-restart-onboarding');
 
-        if (this.state.user) {
-            badgeContainer.classList.remove('hidden');
-            const name = this.state.user.name || 'User';
-            badgeAvatar.innerText = name.charAt(0).toUpperCase();
-            badgeUsername.innerText = name;
+        const currentUser = this.state.user || this.state.supabaseUser;
+
+        if (currentUser) {
+            if (badgeContainer) badgeContainer.classList.remove('hidden');
+            if (loginBtn) loginBtn.classList.add('hidden');
+            if (restartBtn) restartBtn.classList.remove('hidden');
+            
+            const name = this.state.user?.name || this.state.supabaseUser?.user_metadata?.full_name || this.state.supabaseUser?.email?.split('@')[0] || 'User';
+            if (badgeAvatar) badgeAvatar.innerText = name.charAt(0).toUpperCase();
+            if (badgeUsername) badgeUsername.innerText = name;
         } else {
-            badgeContainer.classList.add('hidden');
+            if (badgeContainer) badgeContainer.classList.add('hidden');
+            if (loginBtn) loginBtn.classList.remove('hidden');
+            if (restartBtn) restartBtn.classList.add('hidden');
+        }
+    },
+
+    async logout() {
+        if (typeof authManager !== 'undefined') {
+            await authManager.signOut();
+        } else {
+            localStorage.removeItem('ai_diet_user_id');
+            this.state.userId = null;
+            this.state.user = null;
+            this.state.supabaseUser = null;
+            this.updateHeaderProfile();
+            this.navigate('auth');
         }
     },
 
@@ -65,21 +103,28 @@ const app = {
         const avatar = document.getElementById('profile-modal-avatar');
         const nameEl = document.getElementById('profile-modal-name');
         const detailsEl = document.getElementById('profile-modal-details');
+        const emailEl = document.getElementById('profile-modal-email');
 
-        if (this.state.user) {
-            const name = this.state.user.name || 'User';
+        const currentUser = this.state.user || this.state.supabaseUser;
+
+        if (currentUser) {
+            const name = this.state.user?.name || this.state.supabaseUser?.user_metadata?.full_name || 'User';
+            const email = this.state.user?.email || this.state.supabaseUser?.email || '';
             if (avatar) avatar.innerText = name.charAt(0).toUpperCase();
             if (nameEl) nameEl.innerText = name;
+            if (emailEl) emailEl.innerText = email ? `📧 ${email}` : '';
+            
             const parts = [];
-            if (this.state.user.age) parts.push(`${this.state.user.age} yrs`);
-            if (this.state.user.sex) parts.push(this.state.user.sex.charAt(0).toUpperCase() + this.state.user.sex.slice(1));
-            if (this.state.user.region) parts.push(this.state.user.region.charAt(0).toUpperCase() + this.state.user.region.slice(1) + ' Indian');
-            if (this.state.user.diet_type) parts.push(this.state.user.diet_type.replace('_', '-'));
-            if (detailsEl) detailsEl.innerText = parts.join(' · ') || 'Profile active';
+            if (this.state.user?.age) parts.push(`${this.state.user.age} yrs`);
+            if (this.state.user?.sex) parts.push(this.state.user.sex.charAt(0).toUpperCase() + this.state.user.sex.slice(1));
+            if (this.state.user?.region) parts.push(this.state.user.region.charAt(0).toUpperCase() + this.state.user.region.slice(1) + ' Indian');
+            if (this.state.user?.diet_type) parts.push(this.state.user.diet_type.replace('_', '-'));
+            if (detailsEl) detailsEl.innerText = parts.join(' · ') || (email ? 'Supabase Auth Active' : 'Profile active');
         } else {
             if (avatar) avatar.innerText = '?';
             if (nameEl) nameEl.innerText = 'No Profile';
-            if (detailsEl) detailsEl.innerText = 'Create a new profile to get started';
+            if (emailEl) emailEl.innerText = '';
+            if (detailsEl) detailsEl.innerText = 'Create an account or sign in to get started';
         }
 
         modal.classList.remove('hidden');
@@ -217,10 +262,10 @@ const app = {
     },
 
     showView(viewId) {
-        // Fallback for unset profile
-        if (!this.state.userId && viewId !== 'onboarding' && viewId !== 'foods') {
-            viewId = 'onboarding';
-            window.location.hash = 'onboarding';
+        // Fallback for unauthenticated users
+        if (!this.state.userId && !this.state.supabaseUser && viewId !== 'auth' && viewId !== 'onboarding' && viewId !== 'foods') {
+            viewId = 'auth';
+            window.location.hash = 'auth';
         }
 
         // Hide all views
@@ -228,7 +273,7 @@ const app = {
         
         // Update nav state
         const bottomNav = document.getElementById('bottom-nav');
-        if (viewId === 'onboarding') {
+        if (viewId === 'auth' || viewId === 'onboarding') {
             if (bottomNav) bottomNav.classList.add('hidden');
         } else {
             if (bottomNav) bottomNav.classList.remove('hidden');
@@ -253,6 +298,7 @@ const app = {
             
             // Trigger view-specific init
             const views = {
+                auth: typeof authManager !== 'undefined' ? authManager : null,
                 onboarding: typeof onboarding !== 'undefined' ? onboarding : null,
                 dashboard: typeof dashboard !== 'undefined' ? dashboard : null,
                 mealplan: typeof mealplan !== 'undefined' ? mealplan : null,
