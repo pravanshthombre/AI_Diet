@@ -93,23 +93,29 @@ def api_health():
 
 @app.post("/users", response_model=schemas.UserOut)
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), supabase_uid: str = Depends(get_supabase_uid)):
-    data = user_in.model_dump()
-    target_uid = data.pop("supabase_uid", None) or supabase_uid
+    try:
+        data = user_in.model_dump()
+        target_uid = data.pop("supabase_uid", None) or supabase_uid
 
-    existing = db.query(models.User).filter(models.User.supabase_uid == target_uid).first()
-    if existing:
-        for field, value in data.items():
-            if value is not None:
-                setattr(existing, field, value)
+        existing = db.query(models.User).filter(models.User.supabase_uid == target_uid).first()
+        if existing:
+            for field, value in data.items():
+                if value is not None:
+                    setattr(existing, field, value)
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+        user = models.User(**data, supabase_uid=target_uid)
+        db.add(user)
         db.commit()
-        db.refresh(existing)
-        return existing
-
-    user = models.User(**data, supabase_uid=target_uid)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+        db.refresh(user)
+        return user
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/users/me", response_model=schemas.UserOut)
