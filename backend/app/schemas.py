@@ -178,25 +178,21 @@ class DailyPlanOut(BaseModel):
 
 # ---- Logging ----
 class MealLogCreate(BaseModel):
-    user_id: int
     food_id: int
     meal_slot: Optional[str] = "lunch"
     servings: Optional[float] = 1.0
 
 
 class WaterLogCreate(BaseModel):
-    user_id: int
     amount_ml: float
 
 
 class WeightLogCreate(BaseModel):
-    user_id: int
     weight_kg: float
 
 
 # ---- Feedback ----
 class FeedbackCreate(BaseModel):
-    user_id: int
     food_id: int
     liked: Optional[bool] = None
     rating: Optional[int] = None
@@ -204,7 +200,6 @@ class FeedbackCreate(BaseModel):
 
 # ---- Food Preferences ----
 class FoodPreferenceCreate(BaseModel):
-    user_id: int
     food_id: int
     meal_slot: Optional[str] = ""
 
@@ -268,7 +263,6 @@ class SubstituteRequest(BaseModel):
 
 # ---- Chat ----
 class ChatRequest(BaseModel):
-    user_id: int
     message: str
 
 

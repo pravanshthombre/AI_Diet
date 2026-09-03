@@ -86,8 +86,8 @@ class ApiClient {
     async createUser(userData) {
         return this.request('/users', { method: 'POST', body: JSON.stringify(userData) });
     }
-    async getUser(userId) {
-        return this.request(`/users/${userId}`);
+    async getUser() {
+        return this.request('/users/me');
     }
     async getUserBySupabaseUid(uid) {
         return this.request(`/users/by-supabase/${encodeURIComponent(uid)}`);
@@ -95,8 +95,8 @@ class ApiClient {
     async getUserByEmail(email) {
         return this.request(`/users/by-email/${encodeURIComponent(email)}`);
     }
-    async updateUser(userId, userData) {
-        return this.request(`/users/${userId}`, { method: 'PUT', body: JSON.stringify(userData) });
+    async updateUser(userData) {
+        return this.request('/users/me', { method: 'PUT', body: JSON.stringify(userData) });
     }
 
     // ── Calculators ──
@@ -108,8 +108,8 @@ class ApiClient {
     }
 
     // ── Diet Plan ──
-    async getDietPlan(userId) {
-        return this.request(`/diet-plan/${userId}`);
+    async getDietPlan() {
+        return this.request('/diet-plan');
     }
 
     // ── Food Database ──
@@ -118,58 +118,58 @@ class ApiClient {
     }
 
     // ── Logging ──
-    async logMeal(userId, foodId, mealSlot, servings) {
+    async logMeal(foodId, mealSlot, servings) {
         return this.request('/log-meal', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, food_id: foodId, meal_slot: mealSlot, servings })
+            body: JSON.stringify({ food_id: foodId, meal_slot: mealSlot, servings })
         });
     }
-    async logWater(userId, amountMl) {
+    async logWater(amountMl) {
         return this.request('/log-water', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, amount_ml: amountMl })
+            body: JSON.stringify({ amount_ml: amountMl })
         });
     }
-    async logWeight(userId, weightKg) {
+    async logWeight(weightKg) {
         return this.request('/log-weight', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, weight_kg: weightKg })
+            body: JSON.stringify({ weight_kg: weightKg })
         });
     }
 
     // ── Tracking ──
-    async getTracking(userId, dateStr) {
-        return this.request(`/tracking/${userId}?date=${dateStr}`);
+    async getTracking(dateStr) {
+        return this.request(`/tracking?date=${dateStr}`);
     }
 
     // ── Chat ──
-    async chat(userId, message) {
+    async chat(message) {
         return this.request('/chat', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, message })
+            body: JSON.stringify({ message })
         });
     }
 
     // ── Feedback ──
-    async submitFeedback(userId, foodId, liked, rating) {
+    async submitFeedback(foodId, liked, rating) {
         return this.request('/feedback', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, food_id: foodId, liked, rating })
+            body: JSON.stringify({ food_id: foodId, liked, rating })
         });
     }
 
     // ── Food Preferences ──
-    async getPreferences(userId) {
-        return this.request(`/food-preferences/${userId}`);
+    async getPreferences() {
+        return this.request('/food-preferences');
     }
-    async addPreference(userId, foodId) {
+    async addPreference(foodId) {
         return this.request('/food-preferences', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, food_id: foodId })
+            body: JSON.stringify({ food_id: foodId })
         });
     }
-    async removePreference(userId, foodId) {
-        return this.request(`/food-preferences/${userId}/${foodId}`, {
+    async removePreference(foodId) {
+        return this.request(`/food-preferences/${foodId}`, {
             method: 'DELETE'
         });
     }

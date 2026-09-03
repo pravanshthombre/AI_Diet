@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 
 from .database import Base, engine, get_db, SessionLocal
 from . import models, schemas, calculators
+from .auth import get_current_user, get_supabase_uid
 from .recommender import recommend_meals, _parse_csv_field
 from .meal_planner import generate_daily_plan
 from .substitution import find_substitutes
@@ -88,36 +89,32 @@ def api_health():
 # ═══════════════════════════════════════════════════════════════════
 
 @app.post("/users", response_model=schemas.UserOut)
-def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), supabase_uid: str = Depends(get_supabase_uid)):
     data = user_in.model_dump()
-    # If supabase_uid is supplied, check if existing user profile exists and update it
-    if data.get("supabase_uid"):
-        existing = db.query(models.User).filter(models.User.supabase_uid == data["supabase_uid"]).first()
-        if existing:
-            for field, value in data.items():
-                if value is not None:
-                    setattr(existing, field, value)
-            db.commit()
-            db.refresh(existing)
-            return existing
 
-    user = models.User(**data)
+    existing = db.query(models.User).filter(models.User.supabase_uid == supabase_uid).first()
+    if existing:
+        for field, value in data.items():
+            if value is not None:
+                setattr(existing, field, value)
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    user = models.User(**data, supabase_uid=supabase_uid)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-@app.get("/users/{user_id}", response_model=schemas.UserOut)
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+@app.get("/users/me", response_model=schemas.UserOut)
+def get_user_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
 
 
 @app.get("/users/by-supabase/{supabase_uid}", response_model=schemas.UserOut)
-def get_user_by_supabase(supabase_uid: str, db: Session = Depends(get_db)):
+def get_user_by_supabase(supabase_uid: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     user = db.query(models.User).filter(models.User.supabase_uid == supabase_uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User profile not found for this Supabase account")
@@ -125,24 +122,21 @@ def get_user_by_supabase(supabase_uid: str, db: Session = Depends(get_db)):
 
 
 @app.get("/users/by-email/{email}", response_model=schemas.UserOut)
-def get_user_by_email(email: str, db: Session = Depends(get_db)):
+def get_user_by_email(email: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User profile not found for this email")
     return user
 
 
-@app.put("/users/{user_id}", response_model=schemas.UserOut)
-def update_user(user_id: int, updates: schemas.UserUpdate, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@app.put("/users/me", response_model=schemas.UserOut)
+def update_user_me(updates: schemas.UserUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     for field, value in updates.model_dump(exclude_unset=True).items():
         if value is not None:
-            setattr(user, field, value)
+            setattr(current_user, field, value)
     db.commit()
-    db.refresh(user)
-    return user
+    db.refresh(current_user)
+    return current_user
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -224,32 +218,28 @@ def list_foods(
 # ML RECOMMENDATIONS
 # ═══════════════════════════════════════════════════════════════════
 
-@app.get("/recommend/{user_id}")
+@app.get("/recommend", response_model=List[dict])
 def get_recommendations(
-    user_id: int,
     meal_slot: str = Query("lunch", description="breakfast/lunch/dinner/snack"),
     top_n: int = 5,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    bmr = calculators.calculate_bmr(user.weight_kg, user.height_cm, user.age, user.sex)
-    tdee = calculators.calculate_tdee(bmr, user.activity_level)
-    cal = calculators.calculate_daily_calorie_target(tdee, user.goal, user.sex)
+    bmr = calculators.calculate_bmr(current_user.weight_kg, current_user.height_cm, current_user.age, current_user.sex)
+    tdee = calculators.calculate_tdee(bmr, current_user.activity_level)
+    cal = calculators.calculate_daily_calorie_target(tdee, current_user.goal, current_user.sex)
 
     slot_weights = {"breakfast": 0.25, "lunch": 0.35, "dinner": 0.30, "snack": 0.10}
     slot_target = cal["daily_calorie_target"] * slot_weights.get(meal_slot, 0.25)
 
-    allergies = _parse_csv_field(user.allergies)
-    food_dislikes = _parse_csv_field(user.food_dislikes)
+    allergies = _parse_csv_field(current_user.allergies)
+    food_dislikes = _parse_csv_field(current_user.food_dislikes)
 
     results = recommend_meals(
-        db=db, user_id=user_id, region=user.region,
-        diet_type=user.diet_type, meal_slot=meal_slot,
+        db=db, user_id=current_user.id, region=current_user.region,
+        diet_type=current_user.diet_type, meal_slot=meal_slot,
         target_calories_for_slot=slot_target,
-        weekly_budget_inr=user.weekly_budget_inr,
+        weekly_budget_inr=current_user.weekly_budget_inr,
         allergies=allergies,
         food_dislikes=food_dislikes,
         top_n=top_n,
@@ -269,13 +259,9 @@ def get_recommendations(
 # DAILY DIET PLAN
 # ═══════════════════════════════════════════════════════════════════
 
-@app.get("/diet-plan/{user_id}")
-def get_diet_plan(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    plan = generate_daily_plan(db, user)
+@app.get("/diet-plan")
+def get_diet_plan(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    plan = generate_daily_plan(db, current_user)
 
     # Serialize food objects
     for slot in ["breakfast", "lunch", "dinner", "snack"]:
@@ -285,23 +271,19 @@ def get_diet_plan(user_id: int, db: Session = Depends(get_db)):
     return plan
 
 
-@app.post("/diet-plan/{user_id}/substitute")
+@app.post("/diet-plan/substitute")
 def substitute_food(
-    user_id: int,
     req: schemas.SubstituteRequest,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     budget_ceiling = None
-    if user.weekly_budget_inr:
-        budget_ceiling = (user.weekly_budget_inr / 21) * 1.5
+    if current_user.weekly_budget_inr:
+        budget_ceiling = (current_user.weekly_budget_inr / 21) * 1.5
 
     subs = find_substitutes(
-        db=db, user_id=user_id, food_id=req.food_id, meal_slot=req.meal_slot,
-        diet_type=user.diet_type, region=user.region,
+        db=db, user_id=current_user.id, food_id=req.food_id, meal_slot=req.meal_slot,
+        diet_type=current_user.diet_type, region=current_user.region,
         budget_ceiling=budget_ceiling, top_n=5,
     )
 
@@ -321,14 +303,12 @@ def substitute_food(
 # ═══════════════════════════════════════════════════════════════════
 
 @app.post("/log-meal")
-def log_meal(entry: schemas.MealLogCreate, db: Session = Depends(get_db)):
-    if not db.query(models.User).filter(models.User.id == entry.user_id).first():
-        raise HTTPException(status_code=404, detail="User not found")
+def log_meal(entry: schemas.MealLogCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not db.query(models.Food).filter(models.Food.id == entry.food_id).first():
         raise HTTPException(status_code=404, detail="Food not found")
 
     log = models.MealLog(
-        user_id=entry.user_id,
+        user_id=current_user.id,
         food_id=entry.food_id,
         meal_slot=entry.meal_slot,
         servings=entry.servings or 1.0,
@@ -339,26 +319,19 @@ def log_meal(entry: schemas.MealLogCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/log-water")
-def log_water(entry: schemas.WaterLogCreate, db: Session = Depends(get_db)):
-    if not db.query(models.User).filter(models.User.id == entry.user_id).first():
-        raise HTTPException(status_code=404, detail="User not found")
-
-    log = models.WaterLog(user_id=entry.user_id, amount_ml=entry.amount_ml)
+def log_water(entry: schemas.WaterLogCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    log = models.WaterLog(user_id=current_user.id, amount_ml=entry.amount_ml)
     db.add(log)
     db.commit()
-    return {"status": "logged", "total_today_ml": _today_water(db, entry.user_id)}
+    return {"status": "logged", "total_today_ml": _today_water(db, current_user.id)}
 
 
 @app.post("/log-weight")
-def log_weight(entry: schemas.WeightLogCreate, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == entry.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    log = models.WeightLog(user_id=entry.user_id, weight_kg=entry.weight_kg)
+def log_weight(entry: schemas.WeightLogCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    log = models.WeightLog(user_id=current_user.id, weight_kg=entry.weight_kg)
     db.add(log)
     # Also update user's current weight
-    user.weight_kg = entry.weight_kg
+    current_user.weight_kg = entry.weight_kg
     db.commit()
     return {"status": "logged", "weight_kg": entry.weight_kg}
 
@@ -368,14 +341,12 @@ def log_weight(entry: schemas.WeightLogCreate, db: Session = Depends(get_db)):
 # ═══════════════════════════════════════════════════════════════════
 
 @app.post("/feedback")
-def submit_feedback(entry: schemas.FeedbackCreate, db: Session = Depends(get_db)):
-    if not db.query(models.User).filter(models.User.id == entry.user_id).first():
-        raise HTTPException(status_code=404, detail="User not found")
+def submit_feedback(entry: schemas.FeedbackCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not db.query(models.Food).filter(models.Food.id == entry.food_id).first():
         raise HTTPException(status_code=404, detail="Food not found")
 
     fb = models.Feedback(
-        user_id=entry.user_id,
+        user_id=current_user.id,
         food_id=entry.food_id,
         liked=entry.liked,
         rating=entry.rating,
@@ -389,15 +360,12 @@ def submit_feedback(entry: schemas.FeedbackCreate, db: Session = Depends(get_db)
 # FOOD PREFERENCES (Favorite Foods for Diet Plan Prioritization)
 # ═══════════════════════════════════════════════════════════════════
 
-@app.get("/food-preferences/{user_id}")
-def get_food_preferences(user_id: int, db: Session = Depends(get_db)):
-    """List all preferred/favorite foods for a user."""
-    if not db.query(models.User).filter(models.User.id == user_id).first():
-        raise HTTPException(status_code=404, detail="User not found")
-
+@app.get("/food-preferences")
+def get_food_preferences(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """List all preferred/favorite foods for the authenticated user."""
     prefs = (
         db.query(models.FoodPreference)
-        .filter(models.FoodPreference.user_id == user_id)
+        .filter(models.FoodPreference.user_id == current_user.id)
         .all()
     )
     return [
@@ -413,10 +381,8 @@ def get_food_preferences(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/food-preferences")
-def add_food_preference(entry: schemas.FoodPreferenceCreate, db: Session = Depends(get_db)):
-    """Add a food to the user's preferred/favorite foods list."""
-    if not db.query(models.User).filter(models.User.id == entry.user_id).first():
-        raise HTTPException(status_code=404, detail="User not found")
+def add_food_preference(entry: schemas.FoodPreferenceCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Add a food to the authenticated user's preferred/favorite foods list."""
     if not db.query(models.Food).filter(models.Food.id == entry.food_id).first():
         raise HTTPException(status_code=404, detail="Food not found")
 
@@ -424,7 +390,7 @@ def add_food_preference(entry: schemas.FoodPreferenceCreate, db: Session = Depen
     existing = (
         db.query(models.FoodPreference)
         .filter(
-            models.FoodPreference.user_id == entry.user_id,
+            models.FoodPreference.user_id == current_user.id,
             models.FoodPreference.food_id == entry.food_id,
         )
         .first()
@@ -433,7 +399,7 @@ def add_food_preference(entry: schemas.FoodPreferenceCreate, db: Session = Depen
         return {"status": "already_preferred", "id": existing.id}
 
     pref = models.FoodPreference(
-        user_id=entry.user_id,
+        user_id=current_user.id,
         food_id=entry.food_id,
         meal_slot=entry.meal_slot or "",
     )
@@ -443,13 +409,13 @@ def add_food_preference(entry: schemas.FoodPreferenceCreate, db: Session = Depen
     return {"status": "preference_added", "id": pref.id}
 
 
-@app.delete("/food-preferences/{user_id}/{food_id}")
-def remove_food_preference(user_id: int, food_id: int, db: Session = Depends(get_db)):
-    """Remove a food from the user's preferred/favorite foods list."""
+@app.delete("/food-preferences/{food_id}")
+def remove_food_preference(food_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Remove a food from the authenticated user's preferred/favorite foods list."""
     pref = (
         db.query(models.FoodPreference)
         .filter(
-            models.FoodPreference.user_id == user_id,
+            models.FoodPreference.user_id == current_user.id,
             models.FoodPreference.food_id == food_id,
         )
         .first()
@@ -466,36 +432,28 @@ def remove_food_preference(user_id: int, food_id: int, db: Session = Depends(get
 # NUTRITION GAPS
 # ═══════════════════════════════════════════════════════════════════
 
-@app.get("/nutrition-gaps/{user_id}")
+@app.get("/nutrition-gaps")
 def get_nutrition_gaps(
-    user_id: int,
     days: int = 1,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    bmr = calculators.calculate_bmr(current_user.weight_kg, current_user.height_cm, current_user.age, current_user.sex)
+    tdee = calculators.calculate_tdee(bmr, current_user.activity_level)
 
-    bmr = calculators.calculate_bmr(user.weight_kg, user.height_cm, user.age, user.sex)
-    tdee = calculators.calculate_tdee(bmr, user.activity_level)
-
-    return calculate_nutrition_gaps(db, user_id, user.sex, user.weight_kg, user.goal, tdee, days)
+    return calculate_nutrition_gaps(db, current_user.id, current_user.sex, current_user.weight_kg, current_user.goal, tdee, days)
 
 
 # ═══════════════════════════════════════════════════════════════════
 # DAILY TRACKING SUMMARY
 # ═══════════════════════════════════════════════════════════════════
 
-@app.get("/tracking/{user_id}")
+@app.get("/tracking")
 def get_tracking(
-    user_id: int,
     date: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     # Parse date or use today
     if date:
         try:
@@ -509,16 +467,16 @@ def get_tracking(
     day_end = day_start + timedelta(days=1)
 
     # Calculate targets
-    bmr = calculators.calculate_bmr(user.weight_kg, user.height_cm, user.age, user.sex)
-    tdee = calculators.calculate_tdee(bmr, user.activity_level)
-    cal = calculators.calculate_daily_calorie_target(tdee, user.goal, user.sex)
-    targets = calculators.calculate_nutrition_targets(user.weight_kg, user.sex, user.goal, tdee)
-    water_target = calculators.calculate_water_intake(user.weight_kg, user.activity_level)
+    bmr = calculators.calculate_bmr(current_user.weight_kg, current_user.height_cm, current_user.age, current_user.sex)
+    tdee = calculators.calculate_tdee(bmr, current_user.activity_level)
+    cal = calculators.calculate_daily_calorie_target(tdee, current_user.goal, current_user.sex)
+    targets = calculators.calculate_nutrition_targets(current_user.weight_kg, current_user.sex, current_user.goal, tdee)
+    water_target = calculators.calculate_water_intake(current_user.weight_kg, current_user.activity_level)
 
     # Get today's meal logs
     logs = (
         db.query(models.MealLog)
-        .filter(models.MealLog.user_id == user_id)
+        .filter(models.MealLog.user_id == current_user.id)
         .filter(models.MealLog.logged_at >= day_start)
         .filter(models.MealLog.logged_at < day_end)
         .all()
@@ -548,7 +506,7 @@ def get_tracking(
             })
 
     # Today's water
-    water_ml = _today_water(db, user_id, day_start, day_end)
+    water_ml = _today_water(db, current_user.id, day_start, day_end)
 
     return {
         "date": day.isoformat(),
@@ -585,11 +543,11 @@ def _today_water(db, user_id, start=None, end=None):
 # WEIGHT HISTORY
 # ═══════════════════════════════════════════════════════════════════
 
-@app.get("/weight-history/{user_id}")
-def get_weight_history(user_id: int, limit: int = 30, db: Session = Depends(get_db)):
+@app.get("/weight-history")
+def get_weight_history(limit: int = 30, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     logs = (
         db.query(models.WeightLog)
-        .filter(models.WeightLog.user_id == user_id)
+        .filter(models.WeightLog.user_id == current_user.id)
         .order_by(models.WeightLog.logged_at.desc())
         .limit(limit)
         .all()
@@ -605,8 +563,8 @@ def get_weight_history(user_id: int, limit: int = 30, db: Session = Depends(get_
 # ═══════════════════════════════════════════════════════════════════
 
 @app.post("/chat")
-def chat(req: schemas.ChatRequest, db: Session = Depends(get_db)):
-    return process_chat(db, req.user_id, req.message)
+def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return process_chat(db, current_user.id, req.message)
 
 
 # ═══════════════════════════════════════════════════════════════════
