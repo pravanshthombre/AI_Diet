@@ -25,6 +25,8 @@ class UserCreate(BaseModel):
     sleep_time: Optional[str] = "23:00"
     exercise_time: Optional[str] = ""
     meals_per_day: Optional[int] = 4
+    supabase_uid: Optional[str] = None
+    email: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -46,6 +48,8 @@ class UserOut(BaseModel):
     sleep_time: Optional[str] = "23:00"
     exercise_time: Optional[str] = ""
     meals_per_day: Optional[int] = 4
+    supabase_uid: Optional[str] = None
+    email: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -68,6 +72,8 @@ class UserUpdate(BaseModel):
     sleep_time: Optional[str] = None
     exercise_time: Optional[str] = None
     meals_per_day: Optional[int] = None
+    supabase_uid: Optional[str] = None
+    email: Optional[str] = None
 
 
 # ---- Food ----
@@ -172,25 +178,21 @@ class DailyPlanOut(BaseModel):
 
 # ---- Logging ----
 class MealLogCreate(BaseModel):
-    user_id: int
     food_id: int
     meal_slot: Optional[str] = "lunch"
     servings: Optional[float] = 1.0
 
 
 class WaterLogCreate(BaseModel):
-    user_id: int
     amount_ml: float
 
 
 class WeightLogCreate(BaseModel):
-    user_id: int
     weight_kg: float
 
 
 # ---- Feedback ----
 class FeedbackCreate(BaseModel):
-    user_id: int
     food_id: int
     liked: Optional[bool] = None
     rating: Optional[int] = None
@@ -198,7 +200,6 @@ class FeedbackCreate(BaseModel):
 
 # ---- Food Preferences ----
 class FoodPreferenceCreate(BaseModel):
-    user_id: int
     food_id: int
     meal_slot: Optional[str] = ""
 
@@ -262,7 +263,6 @@ class SubstituteRequest(BaseModel):
 
 # ---- Chat ----
 class ChatRequest(BaseModel):
-    user_id: int
     message: str
 
 
@@ -270,3 +270,70 @@ class ChatResponse(BaseModel):
     reply: str
     intent: str
     data: Optional[dict] = None
+
+
+# ---- Vision / Food Image Analysis ----
+class VisionBaselineNutrition(BaseModel):
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    fiber_g: Optional[float] = None
+    iron_mg: Optional[float] = None
+
+class VisionFoodMatch(BaseModel):
+    id: Optional[int] = None
+    name: str
+    region: Optional[str] = "pan_india"
+    diet_type: Optional[str] = "vegetarian"
+    baseline_ifct: VisionBaselineNutrition
+
+class VisionAlternative(BaseModel):
+    id: int
+    name: str
+    calories: float
+    protein_g: float
+    fat_g: float
+
+class VisionAnalyzeResponse(BaseModel):
+    detected_dish: str
+    confidence: float
+    detection_source: str
+    estimated_portion_grams: float
+    primary_match: Optional[VisionFoodMatch] = None
+    alternatives: List[VisionAlternative] = []
+
+
+# ---- Calibration ----
+class CalibrateRequest(BaseModel):
+    food_id: int
+    portion_grams: Optional[float] = None
+    serving_multiplier: Optional[float] = None
+    prep_style: str = "homestyle_sauteed"
+    additions: Optional[List[str]] = []
+
+class CalibratedMacros(BaseModel):
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    fiber_g: float
+    iron_mg: float
+    calcium_mg: float
+
+class CalibratedVariance(BaseModel):
+    calorie_delta: float
+    fat_delta: float
+    explanation: str
+
+class CalibratedNutritionOut(BaseModel):
+    food_id: int
+    food_name: str
+    portion_grams: float
+    portion_scale: float
+    prep_style: str
+    prep_label: str
+    additions: List[str]
+    baseline_ifct: dict
+    calibrated: CalibratedMacros
+    variance: CalibratedVariance

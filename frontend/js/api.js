@@ -20,6 +20,11 @@ class ApiClient {
             return 'http://127.0.0.1:8000';
         }
 
+        // Local file execution
+        if (window.location.protocol === 'file:') {
+            return 'http://127.0.0.1:8000';
+        }
+
         // Default to cloud backend on Vercel / Netlify / external hosting
         return this.fallbackRenderUrl;
     }
@@ -47,6 +52,12 @@ class ApiClient {
         const base = this.getBaseUrl();
         const url = `${base}${endpoint}`;
         const headers = { 'Content-Type': 'application/json', ...options.headers };
+        
+        // Attach Supabase access token if available
+        if (typeof authManager !== 'undefined' && authManager.getAccessToken()) {
+            headers['Authorization'] = `Bearer ${authManager.getAccessToken()}`;
+        }
+
         const config = { ...options, headers };
 
         try {
@@ -80,11 +91,17 @@ class ApiClient {
     async createUser(userData) {
         return this.request('/users', { method: 'POST', body: JSON.stringify(userData) });
     }
-    async getUser(userId) {
-        return this.request(`/users/${userId}`);
+    async getUser() {
+        return this.request('/users/me');
     }
-    async updateUser(userId, userData) {
-        return this.request(`/users/${userId}`, { method: 'PUT', body: JSON.stringify(userData) });
+    async getUserBySupabaseUid(uid) {
+        return this.request(`/users/by-supabase/${encodeURIComponent(uid)}`);
+    }
+    async getUserByEmail(email) {
+        return this.request(`/users/by-email/${encodeURIComponent(email)}`);
+    }
+    async updateUser(userData) {
+        return this.request('/users/me', { method: 'PUT', body: JSON.stringify(userData) });
     }
 
     // ── Calculators ──
@@ -96,8 +113,8 @@ class ApiClient {
     }
 
     // ── Diet Plan ──
-    async getDietPlan(userId) {
-        return this.request(`/diet-plan/${userId}`);
+    async getDietPlan() {
+        return this.request('/diet-plan');
     }
 
     // ── Food Database ──
@@ -106,60 +123,105 @@ class ApiClient {
     }
 
     // ── Logging ──
-    async logMeal(userId, foodId, mealSlot, servings) {
+    async logMeal(arg1, arg2, arg3, arg4) {
+        let foodId, mealSlot, servings;
+        if (arg4 !== undefined) {
+            // Called with (userId, foodId, mealSlot, servings)
+            foodId = arg2;
+            mealSlot = arg3;
+            servings = arg4;
+        } else {
+            // Called with (foodId, mealSlot, servings)
+            foodId = arg1;
+            mealSlot = arg2;
+            servings = arg3;
+        }
         return this.request('/log-meal', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, food_id: foodId, meal_slot: mealSlot, servings })
+            body: JSON.stringify({ food_id: foodId, meal_slot: mealSlot, servings: servings || 1.0 })
         });
     }
-    async logWater(userId, amountMl) {
+    async logWater(amountMl) {
         return this.request('/log-water', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, amount_ml: amountMl })
+            body: JSON.stringify({ amount_ml: amountMl })
         });
     }
-    async logWeight(userId, weightKg) {
+    async logWeight(weightKg) {
         return this.request('/log-weight', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, weight_kg: weightKg })
+            body: JSON.stringify({ weight_kg: weightKg })
         });
     }
 
     // ── Tracking ──
-    async getTracking(userId, dateStr) {
-        return this.request(`/tracking/${userId}?date=${dateStr}`);
+    async getTracking(arg1, arg2) {
+        const dateStr = (arg2 !== undefined) ? arg2 : (arg1 || '');
+        const query = dateStr ? `?date=${encodeURIComponent(dateStr)}` : '';
+        return this.request(`/tracking${query}`);
     }
 
     // ── Chat ──
-    async chat(userId, message) {
+    async chat(message) {
         return this.request('/chat', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, message })
+            body: JSON.stringify({ message })
         });
     }
 
     // ── Feedback ──
-    async submitFeedback(userId, foodId, liked, rating) {
+    async submitFeedback(foodId, liked, rating) {
         return this.request('/feedback', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, food_id: foodId, liked, rating })
+            body: JSON.stringify({ food_id: foodId, liked, rating })
         });
     }
 
     // ── Food Preferences ──
-    async getPreferences(userId) {
-        return this.request(`/food-preferences/${userId}`);
+    async getPreferences() {
+        return this.request('/food-preferences');
     }
-    async addPreference(userId, foodId) {
+    async addPreference(foodId) {
         return this.request('/food-preferences', {
             method: 'POST',
-            body: JSON.stringify({ user_id: userId, food_id: foodId })
+            body: JSON.stringify({ food_id: foodId })
         });
     }
-    async removePreference(userId, foodId) {
-        return this.request(`/food-preferences/${userId}/${foodId}`, {
+    async removePreference(foodId) {
+        return this.request(`/food-preferences/${foodId}`, {
             method: 'DELETE'
         });
+    }
+
+    // ── Vision / Food Image Analysis ──
+    async analyzeFoodImage(formData) {
+        const base = this.getBaseUrl();
+        const url = `${base}/vision/analyze-plate`;
+        const headers = {};
+        if (typeof authManager !== 'undefined' && authManager.getAccessToken()) {
+            headers['Authorization'] = `Bearer ${authManager.getAccessToken()}`;
+        }
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: formData  // FormData with 'image' field — no Content-Type header (browser sets multipart boundary)
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || 'Food image analysis failed');
+        }
+        return response.json();
+    }
+
+    async calibrateNutrition(payload) {
+        return this.request('/vision/calibrate', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    }
+
+    async getPrepStyles() {
+        return this.request('/vision/prep-styles');
     }
 }
 

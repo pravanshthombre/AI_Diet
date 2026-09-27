@@ -39,13 +39,15 @@ class User(Base):
     sleep_time = Column(String, default="23:00")
     exercise_time = Column(String, default="")
     meals_per_day = Column(Integer, default=4)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    supabase_uid = Column(String, unique=True, index=True, nullable=True)
+    email = Column(String, index=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
-    meal_logs = relationship("MealLog", back_populates="user")
-    water_logs = relationship("WaterLog", back_populates="user")
-    weight_logs = relationship("WeightLog", back_populates="user")
-    feedback = relationship("Feedback", back_populates="user")
-    food_preferences = relationship("FoodPreference", back_populates="user")
+    meal_logs = relationship("MealLog", back_populates="user", cascade="all, delete-orphan")
+    water_logs = relationship("WaterLog", back_populates="user", cascade="all, delete-orphan")
+    weight_logs = relationship("WeightLog", back_populates="user", cascade="all, delete-orphan")
+    feedback = relationship("Feedback", back_populates="user", cascade="all, delete-orphan")
+    food_preferences = relationship("FoodPreference", back_populates="user", cascade="all, delete-orphan")
 
 
 class Food(Base):
@@ -80,7 +82,7 @@ class MealLog(Base):
     food_id = Column(Integer, ForeignKey("foods.id"), nullable=False)
     meal_slot = Column(String, default="lunch")
     servings = Column(Float, default=1.0)
-    logged_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    logged_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="meal_logs")
     food = relationship("Food")
@@ -92,7 +94,7 @@ class WaterLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     amount_ml = Column(Float, nullable=False)
-    logged_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    logged_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="water_logs")
 
@@ -103,7 +105,7 @@ class WeightLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     weight_kg = Column(Float, nullable=False)
-    logged_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    logged_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="weight_logs")
 
@@ -116,7 +118,7 @@ class Feedback(Base):
     food_id = Column(Integer, ForeignKey("foods.id"), nullable=False)
     liked = Column(Boolean, nullable=True)       # True=liked, False=disliked, None=neutral
     rating = Column(Integer, nullable=True)      # 1-5 star rating
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="feedback")
     food = relationship("Food")
@@ -130,7 +132,7 @@ class FoodPreference(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     food_id = Column(Integer, ForeignKey("foods.id"), nullable=False)
     meal_slot = Column(String, default="")          # optional: preferred slot for this food
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="food_preferences")
     food = relationship("Food")
