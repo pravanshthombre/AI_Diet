@@ -12,6 +12,14 @@ Full FastAPI backend with:
   - Daily tracking summary
   - AI chat assistant
   - Food database browser
+  - Food vision analysis & IFCT calibration
+  - ML model training endpoint
+
+Production features:
+  - Structured logging with request IDs
+  - Rate limiting via SlowAPI
+  - Tightened CORS (configurable origins)
+  - Lifespan startup/shutdown events
 
 Run:
     pip install -r requirements.txt
@@ -19,10 +27,16 @@ Run:
     uvicorn app.main:app --reload
 """
 import os
+import uuid
 import base64
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
+import logging
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timedelta, timezone
@@ -38,53 +52,146 @@ from .chat import process_chat
 from .vision import analyze_food_image
 from .calibration import calibrate_food_nutrition, PREPARATION_MODIFIERS, ADD_ON_MODIFIERS
 
-app = FastAPI(
-    title="NutriCalc API",
-    description="AI/ML-powered Diet & Calorie Calculator for Indian regional nutrition",
-    version="2.0.0",
+# ─────────────────────────────────────────────
+# Structured Logging Setup
+# ─────────────────────────────────────────────
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
+logger = logging.getLogger("nutricalc.api")
+
+# ─────────────────────────────────────────────
+# Rate Limiting Setup
+# ─────────────────────────────────────────────
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    _rate_limiting_available = True
+    logger.info("Rate limiting enabled (slowapi)")
+except ImportError:
+    limiter = None
+    _rate_limiting_available = False
+    logger.warning("slowapi not installed — rate limiting disabled. Install with: pip install slowapi")
 
 
-@app.on_event("startup")
-def startup_db_init():
+# ─────────────────────────────────────────────
+# Application Lifespan
+# ─────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events."""
+    # Startup
     try:
-        print("[DATABASE] Connecting to database and creating tables...")
+        logger.info("Connecting to database and creating tables...")
         Base.metadata.create_all(bind=engine)
-        print("[DATABASE] Tables verified/created successfully.")
+        logger.info("Database tables verified/created successfully.")
 
         # Auto-seed foods if table is empty
         db = SessionLocal()
         try:
             food_count = db.query(models.Food).count()
             if food_count == 0:
-                print("[SEED] Database is empty. Seeding 114 Indian regional foods...")
+                logger.info("Database is empty. Seeding Indian regional foods...")
                 from .seed_data import seed
                 seed()
-                print("[SEED] Database seeded successfully.")
+                logger.info("Database seeded successfully.")
             else:
-                print(f"[DATABASE] Connected! Found {food_count} existing food records.")
-        except Exception as seed_err:
-            print(f"[SEED NOTICE] Auto-seed check notice: {seed_err}")
+                logger.info("Database connected. Found %d existing food records.", food_count)
+
+            # Auto-train ML model if data exists and model not trained
+            from .ml_ranker import ranker
+            if not ranker.is_trained:
+                trained = ranker.train_model(db)
+                if trained:
+                    logger.info("ML ranker model auto-trained on startup.")
+                else:
+                    logger.info("ML ranker using rule-based scoring (not enough training data yet).")
+        except Exception as e:
+            logger.warning("Startup data check: %s", e)
         finally:
             db.close()
-    except Exception as db_err:
-        print(f"[DATABASE WARNING] Could not connect to database on startup: {db_err}")
-        print("[DATABASE] Running in resilient mode. Ensure DATABASE_URL is valid.")
+    except Exception as e:
+        logger.error("Could not connect to database on startup: %s", e)
+        logger.warning("Running in resilient mode. Ensure DATABASE_URL is valid.")
+
+    yield
+
+    # Shutdown
+    logger.info("NutriCalc API shutting down.")
 
 
-# CORS for frontend
+app = FastAPI(
+    title="NutriCalc API",
+    description="AI/ML-powered Diet & Calorie Calculator for Indian regional nutrition",
+    version="2.0.0",
+    lifespan=lifespan,
+)
+
+# Register rate limiter
+if _rate_limiting_available:
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# ─────────────────────────────────────────────
+# Middleware
+# ─────────────────────────────────────────────
+
+# CORS — configurable origins for production
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True if ALLOWED_ORIGINS != ["*"] else False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    """Add request ID, log requests, and measure response time."""
+    request_id = str(uuid.uuid4())[:8]
+    request.state.request_id = request_id
+
+    start_time = time.time()
+    logger.info("[%s] %s %s", request_id, request.method, request.url.path)
+
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        duration = time.time() - start_time
+        logger.error("[%s] %s %s → 500 (%.2fs) %s",
+                     request_id, request.method, request.url.path, duration, str(e))
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "request_id": request_id},
+        )
+
+    duration = time.time() - start_time
+    logger.info("[%s] %s %s → %d (%.2fs)",
+                request_id, request.method, request.url.path, response.status_code, duration)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+# ─────────────────────────────────────────────
+# Health Check
+# ─────────────────────────────────────────────
+
 @app.get("/api/health")
 def api_health():
-    return {"status": "ok", "message": "NutriCalc API is running. Visit /docs for interactive API."}
+    from .ml_ranker import ranker
+    return {
+        "status": "ok",
+        "message": "NutriCalc API is running. Visit /docs for interactive API.",
+        "ml_model_trained": ranker.is_trained,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -104,17 +211,17 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), supa
                     setattr(existing, field, value)
             db.commit()
             db.refresh(existing)
+            logger.info("Updated existing user: id=%d, uid=%s", existing.id, target_uid)
             return existing
 
         user = models.User(**data, supabase_uid=target_uid)
         db.add(user)
         db.commit()
         db.refresh(user)
+        logger.info("Created new user: id=%d, uid=%s", user.id, target_uid)
         return user
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        from fastapi import HTTPException
+        logger.error("User creation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -146,6 +253,7 @@ def update_user_me(updates: schemas.UserUpdate, db: Session = Depends(get_db), c
             setattr(current_user, field, value)
     db.commit()
     db.refresh(current_user)
+    logger.info("User %d profile updated", current_user.id)
     return current_user
 
 
@@ -325,6 +433,7 @@ def log_meal(entry: schemas.MealLogCreate, db: Session = Depends(get_db), curren
     )
     db.add(log)
     db.commit()
+    logger.info("User %d logged meal: food_id=%d, slot=%s", current_user.id, entry.food_id, entry.meal_slot)
     return {"status": "logged", "id": log.id}
 
 
@@ -343,6 +452,7 @@ def log_weight(entry: schemas.WeightLogCreate, db: Session = Depends(get_db), cu
     # Also update user's current weight
     current_user.weight_kg = entry.weight_kg
     db.commit()
+    logger.info("User %d logged weight: %.1f kg", current_user.id, entry.weight_kg)
     return {"status": "logged", "weight_kg": entry.weight_kg}
 
 
@@ -363,6 +473,8 @@ def submit_feedback(entry: schemas.FeedbackCreate, db: Session = Depends(get_db)
     )
     db.add(fb)
     db.commit()
+    logger.info("User %d submitted feedback: food_id=%d, liked=%s, rating=%s",
+                current_user.id, entry.food_id, entry.liked, entry.rating)
     return {"status": "feedback recorded"}
 
 
@@ -577,6 +689,21 @@ def chat(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: 
 
 
 # ═══════════════════════════════════════════════════════════════════
+# ML MODEL TRAINING
+# ═══════════════════════════════════════════════════════════════════
+
+@app.post("/admin/train-model")
+def train_ml_model(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Manually trigger ML model retraining with current feedback + meal log data."""
+    from .ml_ranker import ranker
+    success = ranker.train_model(db)
+    if success:
+        logger.info("ML model retrained successfully by user %d", current_user.id)
+        return {"status": "trained", "message": "ML model trained successfully with current data."}
+    return {"status": "skipped", "message": "Not enough training data yet (need ≥10 feedback/log entries)."}
+
+
+# ═══════════════════════════════════════════════════════════════════
 # VISION: FOOD IMAGE ANALYSIS & DYNAMIC IFCT CALIBRATION
 # ═══════════════════════════════════════════════════════════════════
 
@@ -641,4 +768,3 @@ def vision_prep_styles():
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
-

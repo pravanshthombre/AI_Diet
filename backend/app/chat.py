@@ -1,7 +1,10 @@
 """
-Rule-based AI chat assistant.
+Rule-based AI chat assistant with fuzzy intent matching.
 Understands user intents and calls structured services (never invents
 nutrition facts). Per the PRD's most important design decision.
+
+Production: Added fuzzy matching via difflib.SequenceMatcher so typos
+like "protien" still match "protein", and partial phrases are handled.
 
 Supported intents:
   - change meal / substitute
@@ -11,6 +14,8 @@ Supported intents:
   - budget meals
   - general nutrition questions
 """
+import logging
+from difflib import SequenceMatcher
 from sqlalchemy.orm import Session
 from . import calculators
 from .recommender import recommend_meals, _parse_csv_field
@@ -18,6 +23,7 @@ from .substitution import find_substitutes
 from .nutrition_gap import calculate_nutrition_gaps
 from .models import User, Food
 
+logger = logging.getLogger("nutricalc.chat")
 
 GREETINGS = ["hello", "hi", "hey", "namaste", "good morning", "good evening"]
 
@@ -44,6 +50,59 @@ REGION_MAP = {
     "south indian": "south", "kerala": "south", "tamil": "south",
     "bengali": "east", "northeast": "northeast",
 }
+
+# Fuzzy matching threshold (0.0 to 1.0)
+FUZZY_THRESHOLD = 0.75
+
+
+def _fuzzy_match(word: str, keyword: str) -> bool:
+    """
+    Check if a word fuzzy-matches a keyword.
+    Handles typos like 'protien' → 'protein', 'breakfst' → 'breakfast'.
+    """
+    # Exact substring match first (fast path)
+    if keyword in word or word in keyword:
+        return True
+    # For multi-word keywords, check if they appear as a substring
+    if " " in keyword:
+        return False  # Multi-word keywords use substring matching only
+    # Fuzzy match single words
+    ratio = SequenceMatcher(None, word, keyword).ratio()
+    return ratio >= FUZZY_THRESHOLD
+
+
+def _detect_intent_fuzzy(msg: str) -> str | None:
+    """
+    Detect intent using both exact and fuzzy keyword matching.
+    Returns the best-matching intent or None.
+    """
+    words = msg.split()
+
+    # Pass 1: Exact substring matching (fast, preferred)
+    for intent, keywords in INTENT_KEYWORDS.items():
+        if any(kw in msg for kw in keywords):
+            return intent
+
+    # Pass 2: Fuzzy single-word matching (handles typos)
+    best_intent = None
+    best_score = 0.0
+
+    for intent, keywords in INTENT_KEYWORDS.items():
+        for kw in keywords:
+            if " " in kw:
+                continue  # Skip multi-word for fuzzy matching
+            for word in words:
+                ratio = SequenceMatcher(None, word, kw).ratio()
+                if ratio >= FUZZY_THRESHOLD and ratio > best_score:
+                    best_score = ratio
+                    best_intent = intent
+                    logger.debug("Fuzzy matched '%s' → '%s' (intent=%s, score=%.2f)",
+                                word, kw, intent, ratio)
+
+    if best_intent:
+        logger.info("Fuzzy intent detection: '%s' (score=%.2f)", best_intent, best_score)
+
+    return best_intent
 
 
 def process_chat(db: Session, user_id: int, message: str) -> dict:
@@ -74,8 +133,10 @@ def process_chat(db: Session, user_id: int, message: str) -> dict:
     cal_plan = calculators.calculate_daily_calorie_target(tdee, user.goal, user.sex)
     daily_cal = cal_plan["daily_calorie_target"]
 
-    # Detect intent
-    intent = _detect_intent(msg)
+    # Detect intent with fuzzy matching
+    intent = _detect_intent_fuzzy(msg)
+
+    logger.info("Chat message from user %d: '%s' → intent=%s", user_id, msg[:80], intent)
 
     if intent == "explain_warning":
         gaps = calculate_nutrition_gaps(db, user_id, user.sex, user.weight_kg, user.goal, tdee, days=3)
@@ -174,20 +235,23 @@ def process_chat(db: Session, user_id: int, message: str) -> dict:
     }
 
 
-def _detect_intent(msg: str) -> str | None:
-    for intent, keywords in INTENT_KEYWORDS.items():
-        if any(kw in msg for kw in keywords):
-            return intent
-    return None
-
-
 def _detect_meal_slot(msg: str) -> str | None:
-    if any(w in msg for w in ["breakfast", "morning meal"]):
-        return "breakfast"
-    if any(w in msg for w in ["lunch", "afternoon"]):
-        return "lunch"
-    if any(w in msg for w in ["dinner", "night meal", "evening meal"]):
-        return "dinner"
-    if any(w in msg for w in ["snack", "evening snack"]):
-        return "snack"
+    """Detect meal slot with fuzzy matching for typo tolerance."""
+    slot_keywords = {
+        "breakfast": ["breakfast", "morning meal", "brekfast", "breakfst"],
+        "lunch": ["lunch", "afternoon", "lnch"],
+        "dinner": ["dinner", "night meal", "evening meal", "diner", "dinr"],
+        "snack": ["snack", "evening snack", "snak", "snaks"],
+    }
+    for slot, keywords in slot_keywords.items():
+        if any(kw in msg for kw in keywords):
+            return slot
+
+    # Fuzzy fallback for single words
+    words = msg.split()
+    for word in words:
+        for slot, keywords in slot_keywords.items():
+            for kw in keywords:
+                if " " not in kw and SequenceMatcher(None, word, kw).ratio() >= FUZZY_THRESHOLD:
+                    return slot
     return None

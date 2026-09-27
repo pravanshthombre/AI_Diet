@@ -4,13 +4,18 @@ Detects and identifies Indian dishes from uploaded plate photos.
 Provides hybrid support:
   1. Multimodal LLM check via local Ollama (e.g. llava, llama3.2-vision) if available.
   2. Built-in Indian food classifier fallback matching to the 958+ IFCT database.
+
+Production fix: no longer silently defaults to "Dal Tadka" when unrecognized.
+Returns an honest "unrecognized" result prompting manual food selection.
 """
-import io
+import logging
 import re
 import httpx
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from .models import Food
+
+logger = logging.getLogger("nutricalc.vision")
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 
@@ -36,17 +41,20 @@ COMMON_INDIAN_DISH_PATTERNS = [
 async def query_ollama_vision(image_base64: str) -> Optional[str]:
     """Attempts to query a local Ollama instance if a multimodal vision model is present."""
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             # Check available tags
             tags_resp = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             if tags_resp.status_code != 200:
+                logger.warning("Ollama API unavailable (status %d)", tags_resp.status_code)
                 return None
             
             models_list = [m.get("name", "") for m in tags_resp.json().get("models", [])]
             vision_model = next((m for m in models_list if any(v in m.lower() for v in ["llava", "vision", "moondream"])), None)
             if not vision_model:
+                logger.info("No vision-capable model found in Ollama. Available: %s", models_list)
                 return None
 
+            logger.info("Using Ollama vision model: %s", vision_model)
             prompt = "Identify the single main Indian food item in this picture. Return ONLY the dish name in 2-4 words, nothing else."
             payload = {
                 "model": vision_model,
@@ -54,12 +62,17 @@ async def query_ollama_vision(image_base64: str) -> Optional[str]:
                 "images": [image_base64],
                 "stream": False
             }
-            res = await client.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
+            res = await client.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=30.0)
             if res.status_code == 200:
                 reply = res.json().get("response", "").strip()
-                return reply if len(reply) > 2 else None
-    except Exception:
-        return None
+                if len(reply) > 2:
+                    logger.info("Ollama vision detected: '%s'", reply)
+                    return reply
+                logger.warning("Ollama vision returned empty/short response: '%s'", reply)
+    except httpx.TimeoutException:
+        logger.warning("Ollama vision request timed out")
+    except Exception as e:
+        logger.warning("Ollama vision error: %s", e)
     return None
 
 
@@ -86,11 +99,6 @@ def search_food_database_candidates(db: Session, query_text: str, limit: int = 4
                 break
         if len(results) >= limit:
             break
-
-    # 3. Fallback popular regional staples if no direct word match
-    if not results:
-        popular_defaults = ["Dal Tadka", "Steamed White Rice", "Chapati (1 pc)", "Paneer Butter Masala"]
-        results = db.query(Food).filter(Food.name.in_(popular_defaults)).all()
 
     return results[:limit]
 
@@ -127,15 +135,43 @@ async def analyze_food_image(
                 source = "filename_cue"
                 break
 
-    # 3. Default archetype based on common plate composition if still unidentified
+    # 3. FIXED: If still unidentified, return "unrecognized" honestly
+    #    instead of silently defaulting to "Dal Tadka"
     if not detected_name:
-        detected_name = "Dal Tadka"
-        confidence = 0.82
-        source = "composition_classifier"
+        logger.info("Food image could not be identified — returning unrecognized result")
+        return {
+            "detected_dish": "Unrecognized",
+            "confidence": 0.0,
+            "detection_source": "none",
+            "estimated_portion_grams": 150.0,
+            "primary_match": None,
+            "alternatives": [],
+            "requires_manual_selection": True,
+            "message": (
+                "Could not automatically identify the food in this image. "
+                "Please select the dish manually from the food database."
+            ),
+        }
 
     # 4. Pull database matches
     candidates = search_food_database_candidates(db, detected_name, limit=4)
     primary = candidates[0] if candidates else None
+
+    if not primary:
+        logger.warning("Detected '%s' but no IFCT database match found", detected_name)
+        return {
+            "detected_dish": detected_name,
+            "confidence": confidence * 0.7,
+            "detection_source": source,
+            "estimated_portion_grams": 150.0,
+            "primary_match": None,
+            "alternatives": [],
+            "requires_manual_selection": True,
+            "message": (
+                f"Detected '{detected_name}' but could not find a matching entry "
+                "in the nutrition database. Please select the closest match manually."
+            ),
+        }
 
     # Estimate default visual portion
     estimated_grams = 150.0
@@ -145,11 +181,14 @@ async def analyze_food_image(
         elif "rice" in primary.name.lower() or "biryani" in primary.name.lower():
             estimated_grams = 180.0
 
+    logger.info("Vision identified: '%s' (source=%s, confidence=%.2f)", primary.name, source, confidence)
+
     return {
         "detected_dish": primary.name if primary else detected_name,
         "confidence": confidence,
         "detection_source": source,
         "estimated_portion_grams": estimated_grams,
+        "requires_manual_selection": False,
         "primary_match": {
             "id": primary.id if primary else None,
             "name": primary.name if primary else detected_name,

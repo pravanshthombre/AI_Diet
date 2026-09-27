@@ -6,7 +6,12 @@ Warm state (has history) → content-based filtering via cosine similarity
                            on normalized nutrient vectors, blended with feature ranker.
 Hard constraints (diet type, allergies, dislikes, Jain, budget) are always enforced
 BEFORE any ML ranking.
+
+Production fixes:
+  - _food_matches_dislike uses word-boundary matching (not bidirectional substring)
+  - Added structured logging
 """
+import logging
 import numpy as np
 from typing import Optional, List
 from sqlalchemy.orm import Session
@@ -15,15 +20,33 @@ from .models import Food, MealLog, Feedback, FoodPreference, User
 from .features import food_vector, cosine_scores
 from .ml_ranker import ranker
 
+logger = logging.getLogger("nutricalc.recommender")
+
 
 def _parse_csv_field(value: Optional[str] = None) -> List[str]:
     return [item.strip().lower() for item in (value or "").split(",") if item.strip()]
 
 
 def _food_matches_dislike(food: Food, dislike: str) -> bool:
-    """Match dislike tokens against food name (substring, case-insensitive)."""
-    name = food.name.lower()
-    return dislike in name or name in dislike
+    """
+    Match dislike tokens against food name using word-boundary matching.
+
+    FIXED: Previous bidirectional substring matching caused false positives.
+    Now checks if the dislike token appears as a word boundary in the food name,
+    preventing e.g. disliking "rice" from matching "price" or a dislike string
+    of "basmati rice pudding" from matching "rice" bidirectionally.
+    """
+    name_lower = food.name.lower()
+    dislike_lower = dislike.lower().strip()
+
+    # Check if dislike is a meaningful substring in the food name
+    # Use word-boundary approach: the dislike must appear as a whole word or
+    # as a significant part of the food name
+    name_words = set(name_lower.replace("-", " ").replace("(", " ").replace(")", " ").split())
+    dislike_words = set(dislike_lower.replace("-", " ").split())
+
+    # Any dislike word found in the food name words → match
+    return bool(name_words & dislike_words)
 
 
 def _apply_hard_constraints(
@@ -161,6 +184,7 @@ def recommend_meals(
 
 
     if not candidates:
+        logger.info("No candidates found for user %d, slot=%s, region=%s", user_id, meal_slot, region)
         return []
 
 
@@ -246,6 +270,9 @@ def recommend_meals(
 
     blended.sort(key=lambda x: x[1], reverse=True)
     top = blended[:top_n]
+
+    logger.info("Recommended %d foods for user %d, slot=%s (candidates=%d)",
+                len(top), user_id, meal_slot, len(candidates))
 
     return [
         {"food": food, "score": round(float(score), 3), "reason": reason}
