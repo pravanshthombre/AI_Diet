@@ -37,7 +37,9 @@ const app = {
     async loadUser() {
         if (!this.state.userId) return;
         try {
-            this.state.user = await api.getUser();
+            const user = await api.getUser();
+            if (!user) throw new Error('User not found');
+            this.state.user = user;
             this.updateHeaderProfile();
         } catch (e) {
             console.error('Failed to load user', e);
@@ -46,6 +48,7 @@ const app = {
             this.state.user = null;
             this.updateHeaderProfile();
             this.navigate('onboarding');
+            this.showToast('Session expired or profile not found. Please set up your profile again.', 'error');
         }
     },
 
