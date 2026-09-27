@@ -255,8 +255,9 @@ def recommend_meals(
 
 def _cold_start_score(candidates, target_calories):
     scored = []
+    target = max(target_calories, 1.0)
     for food in candidates:
-        calorie_diff = abs(food.calories_per_serving - target_calories)
-        score = 1 / (1 + calorie_diff / max(target_calories, 1))
+        calorie_diff = abs(food.calories_per_serving - target)
+        score = 1 / (1 + calorie_diff / target)
         scored.append((food, score))
     return scored

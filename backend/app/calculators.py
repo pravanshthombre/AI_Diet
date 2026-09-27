@@ -29,6 +29,8 @@ MIN_SAFE_CALORIES = {"male": 1500, "female": 1200}
 # ─────────────────────────────────────────────
 def calculate_bmi(weight_kg: float, height_cm: float) -> dict:
     """BMI = weight (kg) / height² (m²).  Uses Asian cutoffs."""
+    if height_cm <= 0:
+        return {"bmi": 0.0, "category": "Invalid Height", "healthy_weight_range": "N/A"}
     height_m = height_cm / 100
     bmi = round(weight_kg / (height_m ** 2), 1)
 
@@ -140,9 +142,12 @@ def calculate_water_intake(weight_kg: float, activity_level: str, climate: str =
 # Meal timing
 # ─────────────────────────────────────────────
 def _parse_time(t: str) -> int:
-    """Parse 'HH:MM' to minutes from midnight."""
-    parts = t.strip().split(":")
-    return int(parts[0]) * 60 + (int(parts[1]) if len(parts) > 1 else 0)
+    """Parse 'HH:MM' to minutes from midnight. Returns 0 on failure."""
+    try:
+        parts = t.strip().split(":")
+        return int(parts[0]) * 60 + (int(parts[1]) if len(parts) > 1 else 0)
+    except (ValueError, IndexError, AttributeError):
+        return 0
 
 
 def _fmt(minutes: int) -> str:
@@ -157,6 +162,10 @@ def calculate_meal_timing(
     exercise_time: str = "",
     meals_per_day: int = 4,
 ) -> dict:
+    # Guard against invalid meal count
+    if meals_per_day <= 0:
+        meals_per_day = 4
+
     wake = _parse_time(wake_time)
     sleep = _parse_time(sleep_time)
     if sleep <= wake:

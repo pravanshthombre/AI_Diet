@@ -487,9 +487,10 @@ def get_tracking(
     targets = calculators.calculate_nutrition_targets(user.weight_kg, user.sex, user.goal, tdee)
     water_target = calculators.calculate_water_intake(user.weight_kg, user.activity_level)
 
-    # Get today's meal logs
+    # Get today's meal logs with joined food data to avoid N+1 queries
     logs = (
-        db.query(models.MealLog)
+        db.query(models.MealLog, models.Food)
+        .join(models.Food, models.MealLog.food_id == models.Food.id)
         .filter(models.MealLog.user_id == user_id)
         .filter(models.MealLog.logged_at >= day_start)
         .filter(models.MealLog.logged_at < day_end)
@@ -502,22 +503,20 @@ def get_tracking(
     total_fiber = 0
     total_cost = 0
 
-    for log in logs:
-        food = db.query(models.Food).filter(models.Food.id == log.food_id).first()
-        if food:
-            s = log.servings or 1.0
-            total_cal += food.calories_per_serving * s
-            total_protein += food.protein_g * s
-            total_fiber += food.fiber_g * s
-            total_cost += food.price_inr_per_serving * s
-            meals.append({
-                "food_name": food.name,
-                "meal_slot": log.meal_slot,
-                "calories": round(food.calories_per_serving * s, 1),
-                "protein": round(food.protein_g * s, 1),
-                "servings": s,
-                "logged_at": log.logged_at.isoformat() if log.logged_at else "",
-            })
+    for log, food in logs:
+        s = log.servings or 1.0
+        total_cal += food.calories_per_serving * s
+        total_protein += food.protein_g * s
+        total_fiber += food.fiber_g * s
+        total_cost += food.price_inr_per_serving * s
+        meals.append({
+            "food_name": food.name,
+            "meal_slot": log.meal_slot,
+            "calories": round(food.calories_per_serving * s, 1),
+            "protein": round(food.protein_g * s, 1),
+            "servings": s,
+            "logged_at": log.logged_at.isoformat() if log.logged_at else "",
+        })
 
     # Today's water
     water_ml = _today_water(db, user_id, day_start, day_end)
