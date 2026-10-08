@@ -9,6 +9,7 @@ Production fix: no longer silently defaults to "Dal Tadka" when unrecognized.
 Returns an honest "unrecognized" result prompting manual food selection.
 """
 import logging
+import os
 import re
 import httpx
 from typing import List, Dict, Any, Optional
@@ -17,7 +18,10 @@ from .models import Food
 
 logger = logging.getLogger("nutricalc.vision")
 
-OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+# Configurable via env var; empty string disables Ollama vision entirely (for cloud deploys)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "").strip()
+if not OLLAMA_BASE_URL:
+    logger.info("OLLAMA_BASE_URL not set — vision LLM disabled (using heuristic fallback only)")
 
 # Fallback visual cue keywords mapped to common Indian dish archetypes
 COMMON_INDIAN_DISH_PATTERNS = [
@@ -40,6 +44,8 @@ COMMON_INDIAN_DISH_PATTERNS = [
 
 async def query_ollama_vision(image_base64: str) -> Optional[str]:
     """Attempts to query a local Ollama instance if a multimodal vision model is present."""
+    if not OLLAMA_BASE_URL:
+        return None  # Skip entirely on cloud deploys where Ollama isn't available
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Check available tags

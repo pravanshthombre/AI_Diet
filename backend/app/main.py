@@ -87,6 +87,21 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     # Startup
     try:
+        # ── Environment diagnostics (helps debug Render deploys) ──
+        db_url = os.getenv("DATABASE_URL", "")
+        jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
+        if db_url:
+            # Mask password in log output
+            masked = db_url.split("@")[-1] if "@" in db_url else "(configured)"
+            logger.info("DATABASE_URL: connected to %s", masked)
+        else:
+            logger.warning("DATABASE_URL not set — falling back to SQLite (data will NOT persist on Render!)")
+
+        if jwt_secret:
+            logger.info("SUPABASE_JWT_SECRET: configured (%d chars)", len(jwt_secret))
+        else:
+            logger.warning("SUPABASE_JWT_SECRET not set — running in DEVELOPMENT auth mode (no JWT verification)")
+
         logger.info("Connecting to database and creating tables...")
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables verified/created successfully.")

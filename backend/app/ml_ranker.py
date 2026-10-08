@@ -51,12 +51,19 @@ class MLRanker:
             self.is_trained = False
 
     def save_model(self, path: str = None):
-        """Save the trained model to disk."""
+        """Save the trained model to disk. Gracefully handles read-only/ephemeral filesystems."""
         path = path or MODEL_PATH
         if self.model is not None:
-            with open(path, "wb") as f:
-                pickle.dump(self.model, f)
-            logger.info("Saved ML ranker model to %s", path)
+            try:
+                with open(path, "wb") as f:
+                    pickle.dump(self.model, f)
+                logger.info("Saved ML ranker model to %s", path)
+            except OSError as e:
+                logger.warning(
+                    "Could not persist ML model to %s (ephemeral filesystem?): %s. "
+                    "Model is active in-memory and will retrain on next cold start.",
+                    path, e,
+                )
 
     def extract_features(
         self,

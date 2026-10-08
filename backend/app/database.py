@@ -18,8 +18,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Load .env from backend directory or project root
-load_dotenv()
+# Load .env from backend directory or project root (optional on Render — env vars set via Dashboard)
+_backend_env = Path(__file__).resolve().parent.parent / ".env"
+_root_env = Path(__file__).resolve().parent.parent.parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env)
+elif _root_env.exists():
+    load_dotenv(_root_env)
+else:
+    # No .env file — expected on Render (env vars come from Dashboard)
+    pass
 
 
 def _build_engine() -> Engine:
