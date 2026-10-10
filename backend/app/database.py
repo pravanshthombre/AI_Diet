@@ -96,7 +96,10 @@ def ensure_schema_columns(target_engine: Engine):
 
 
 engine: Engine = _build_engine()
-ensure_schema_columns(engine)
+try:
+    ensure_schema_columns(engine)
+except Exception as _init_err:
+    print(f"[STARTUP NOTICE] Schema migration deferred (will retry on first request): {_init_err}")
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
