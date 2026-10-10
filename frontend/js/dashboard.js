@@ -139,7 +139,7 @@ const dashboard = {
 
     async loadWeightTrend(user) {
         try {
-            const history = await api.request(`/weight-history/${user.id}?limit=7`);
+            const history = await api.request(`/weight-history?limit=7`);
             if (history && history.length > 0) {
                 const data = history.map(h => h.weight_kg);
                 const labels = history.map(h => {
