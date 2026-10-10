@@ -110,12 +110,15 @@ const charts = {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
 
-        // For line chart: use container width (responsive), but fixed height
-        const displayWidth = canvas.parentElement ? canvas.parentElement.clientWidth - 20 : 300;
-        const displayHeight = 150;
+        // Ensure robust width calculation even if container is hidden/resizing
+        let parentWidth = canvas.parentElement ? canvas.parentElement.getBoundingClientRect().width : 300;
+        if (parentWidth < 50) parentWidth = 300; // Fallback if hidden
 
-        // Lock CSS size
-        canvas.style.width = displayWidth + 'px';
+        const displayWidth = Math.max(200, parentWidth - 32);
+        const displayHeight = 160;
+
+        // Allow canvas to be responsive in CSS but render sharply
+        canvas.style.width = '100%';
         canvas.style.height = displayHeight + 'px';
 
         // Set internal resolution for high-DPI
