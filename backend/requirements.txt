@@ -6,6 +6,7 @@ scikit-learn
 numpy
 python-multipart
 psycopg2-binary
+psycopg[binary]
 python-dotenv
 httpx
 python-jose[cryptography]
