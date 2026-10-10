@@ -579,34 +579,34 @@
     <!-- Switch Profile & Account Modal -->
     <div id="modal-profile-switch" class="modal-overlay hidden">
         <div class="modal-card" style="max-width: 440px; text-align: center;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--primary-900);">👤 User Account &amp; Profile</h3>
-                <button onclick="app.closeProfileModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--primary-900);">👤 User Profile</h3>
+                <button onclick="app.closeProfileModal()" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: var(--text-muted); transition: color 0.2s;">&times;</button>
             </div>
 
             <!-- Current Profile Info -->
-            <div id="profile-modal-info" style="background: var(--bg-subtle); border-radius: 14px; padding: 16px; margin-bottom: 18px; text-align: left; border: 1px solid var(--border-subtle);">
-                <div style="display: flex; align-items: center; gap: 14px;">
-                    <div id="profile-modal-avatar" style="width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-600), var(--primary-800)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.3rem; box-shadow: var(--shadow-sm);">U</div>
+            <div id="profile-modal-info" style="background: var(--bg-subtle); border-radius: 12px; padding: 18px; margin-bottom: 24px; text-align: left; border: 1px solid var(--border-subtle); box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div id="profile-modal-avatar" style="width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-500), var(--primary-700)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2);">U</div>
                     <div style="flex: 1; min-width: 0;">
-                        <div id="profile-modal-name" style="font-weight: 800; font-size: 1.05rem; color: var(--primary-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User</div>
-                        <div id="profile-modal-email" style="font-size: 0.82rem; color: var(--primary-700); font-weight: 500; margin-bottom: 2px;">user@example.com</div>
-                        <div id="profile-modal-details" style="font-size: 0.78rem; color: var(--text-muted);">Loading details...</div>
+                        <div id="profile-modal-name" style="font-weight: 800; font-size: 1.1rem; color: var(--primary-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;">User</div>
+                        <div id="profile-modal-email" style="font-size: 0.85rem; color: var(--primary-700); font-weight: 500; margin-bottom: 4px;">user@example.com</div>
+                        <div id="profile-modal-details" style="font-size: 0.8rem; color: var(--text-muted); background: white; padding: 4px 8px; border-radius: 6px; display: inline-block; border: 1px solid var(--border-light);">Loading details...</div>
                     </div>
                 </div>
-                <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end;">
-                    <button class="btn btn-outline small" onclick="app.restartProfile()" style="font-size: 0.75rem; color: var(--text-danger); border-color: var(--border-danger);">🔄 Reset Profile</button>
-                </div>
-            </div>
             </div>
 
             <!-- Action Buttons -->
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button class="btn btn-primary" onclick="app.resumeProfile()" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    ▶️ Continue to Dashboard
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button class="btn btn-primary" onclick="app.resumeProfile()" style="width: 100%; padding: 14px; font-size: 1rem; font-weight: 700; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25); transition: transform 0.2s, box-shadow 0.2s;">
+                    <span style="font-size: 1.2rem;">✅</span> Continue with this Profile
                 </button>
-                <button class="btn btn-secondary" onclick="app.restartProfile()" style="width: 100%; padding: 12px; font-size: 0.95rem; font-weight: 700; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    🔄 Reset / Create New Profile
+                <div style="position: relative; margin: 12px 0;">
+                    <div style="position: absolute; top: 50%; left: 0; right: 0; border-top: 1px solid var(--border-medium); z-index: 1;"></div>
+                    <span style="position: relative; background: white; padding: 0 12px; color: var(--text-muted); font-size: 0.85rem; z-index: 2; font-weight: 600;">OR</span>
+                </div>
+                <button class="btn btn-outline" onclick="if(confirm('Are you sure you want to reset your local profile? You will need to complete onboarding again.')) app.restartProfile()" style="width: 100%; padding: 14px; font-size: 0.95rem; font-weight: 700; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-danger); border-color: var(--text-danger); background: #fef2f2;">
+                    <span style="font-size: 1.1rem;">🔄</span> Create New Profile (Reset)
                 </button>
             </div>
         </div>
