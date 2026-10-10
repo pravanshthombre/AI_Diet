@@ -60,6 +60,9 @@ venv.bak/
 *.sqlite3
 backend/nutricalc.db
 
+# ML model artifacts (retrained on startup)
+*.pkl
+
 # IDE and Editors
 .vscode/
 .idea/

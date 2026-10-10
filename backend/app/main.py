@@ -27,10 +27,12 @@ Run:
     uvicorn app.main:app --reload
 """
 import os
+import sys
 import uuid
 import base64
 import logging
 import time
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Request
@@ -82,11 +84,31 @@ except ImportError:
 # ─────────────────────────────────────────────
 # Application Lifespan
 # ─────────────────────────────────────────────
+def _background_ml_train():
+    """Train the ML model in a background thread so the server starts instantly."""
+    try:
+        db = SessionLocal()
+        try:
+            from .ml_ranker import ranker
+            if not ranker.is_trained:
+                trained = ranker.train_model(db)
+                if trained:
+                    logger.info("[BG] ML ranker model auto-trained.")
+                else:
+                    logger.info("[BG] ML ranker using rule-based scoring (not enough data).")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("[BG] ML training failed (non-fatal): %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     # Startup
     try:
+        is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
+
         # ── Environment diagnostics (helps debug Render deploys) ──
         db_url = os.getenv("DATABASE_URL", "")
         jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
@@ -95,12 +117,23 @@ async def lifespan(app: FastAPI):
             masked = db_url.split("@")[-1] if "@" in db_url else "(configured)"
             logger.info("DATABASE_URL: connected to %s", masked)
         else:
-            logger.warning("DATABASE_URL not set — falling back to SQLite (data will NOT persist on Render!)")
+            if is_production:
+                logger.error(
+                    "FATAL: DATABASE_URL not set in production! "
+                    "SQLite is NOT supported on Render (ephemeral filesystem). "
+                    "Set DATABASE_URL in the Render Dashboard → Environment tab."
+                )
+                # Still allow startup so health check can report the problem
+            else:
+                logger.warning("DATABASE_URL not set — falling back to SQLite (local dev only)")
 
         if jwt_secret:
             logger.info("SUPABASE_JWT_SECRET: configured (%d chars)", len(jwt_secret))
         else:
-            logger.warning("SUPABASE_JWT_SECRET not set — running in DEVELOPMENT auth mode (no JWT verification)")
+            if is_production:
+                logger.warning("SUPABASE_JWT_SECRET not set in production — auth is DISABLED")
+            else:
+                logger.warning("SUPABASE_JWT_SECRET not set — running in DEVELOPMENT auth mode")
 
         logger.info("Connecting to database and creating tables...")
         Base.metadata.create_all(bind=engine)
@@ -114,22 +147,20 @@ async def lifespan(app: FastAPI):
                 logger.info("Database is empty. Seeding Indian regional foods...")
                 from .seed_data import seed
                 seed()
-                logger.info("Database seeded successfully.")
+                food_count = db.query(models.Food).count()
+                logger.info("Database seeded successfully (%d foods).", food_count)
             else:
                 logger.info("Database connected. Found %d existing food records.", food_count)
-
-            # Auto-train ML model if data exists and model not trained
-            from .ml_ranker import ranker
-            if not ranker.is_trained:
-                trained = ranker.train_model(db)
-                if trained:
-                    logger.info("ML ranker model auto-trained on startup.")
-                else:
-                    logger.info("ML ranker using rule-based scoring (not enough training data yet).")
         except Exception as e:
             logger.warning("Startup data check: %s", e)
         finally:
             db.close()
+
+        # Train ML model in background thread (non-blocking startup)
+        ml_thread = threading.Thread(target=_background_ml_train, daemon=True)
+        ml_thread.start()
+        logger.info("ML model training dispatched to background thread.")
+
     except Exception as e:
         logger.error("Could not connect to database on startup: %s", e)
         logger.warning("Running in resilient mode. Ensure DATABASE_URL is valid.")
@@ -202,11 +233,25 @@ async def request_logging_middleware(request: Request, call_next):
 @app.get("/api/health")
 def api_health():
     from .ml_ranker import ranker
-    return {
+
+    health = {
         "status": "ok",
         "message": "NutriCalc API is running. Visit /docs for interactive API.",
         "ml_model_trained": ranker.is_trained,
+        "database": "postgresql" if os.getenv("DATABASE_URL") else "sqlite (dev only)",
+        "environment": os.getenv("ENVIRONMENT", "development"),
     }
+
+    # Memory diagnostics (Linux/Render only — helps debug OOM)
+    try:
+        if sys.platform != "win32":
+            import resource
+            mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+            health["memory_mb"] = round(mem_mb, 1)
+    except Exception:
+        pass
+
+    return health
 
 
 # ═══════════════════════════════════════════════════════════════════

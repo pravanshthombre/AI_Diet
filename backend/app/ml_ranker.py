@@ -238,8 +238,8 @@ class MLRanker:
         logger.info("Training GradientBoosting ranker on %d samples...", len(X))
 
         self.model = GradientBoostingRegressor(
-            n_estimators=100,
-            max_depth=4,
+            n_estimators=50,
+            max_depth=3,
             learning_rate=0.1,
             subsample=0.8,
             random_state=42,
