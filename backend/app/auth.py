@@ -78,6 +78,11 @@ def get_supabase_uid(auth: Optional[HTTPAuthorizationCredentials] = Depends(secu
 
     # If JWT secret is configured, verify the token
     if SUPABASE_JWT_SECRET:
+        # Check if it's a frontend local device token
+        if token.startswith("device_"):
+            logger.debug("Accepted local device token: %s", token)
+            return token
+            
         payload = _verify_jwt(token)
         if payload is None:
             raise HTTPException(
