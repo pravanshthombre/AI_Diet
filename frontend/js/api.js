@@ -123,33 +123,25 @@ class ApiClient {
     }
 
     // ── Logging ──
-    async logMeal(arg1, arg2, arg3, arg4) {
-        let foodId, mealSlot, servings;
-        if (arg4 !== undefined) {
-            // Called with (userId, foodId, mealSlot, servings)
-            foodId = arg2;
-            mealSlot = arg3;
-            servings = arg4;
-        } else {
-            // Called with (foodId, mealSlot, servings)
-            foodId = arg1;
-            mealSlot = arg2;
-            servings = arg3;
-        }
+    async logMeal(foodId, mealSlot, servings = 1.0) {
         return this.request('/log-meal', {
             method: 'POST',
-            body: JSON.stringify({ food_id: foodId, meal_slot: mealSlot, servings: servings || 1.0 })
+            body: JSON.stringify({
+                food_id: foodId,
+                meal_slot: mealSlot,
+                servings: servings
+            })
         });
     }
-    async logWater(arg1, arg2) {
-        const amountMl = (arg2 !== undefined) ? arg2 : arg1;
+
+    async logWater(amountMl) {
         return this.request('/log-water', {
             method: 'POST',
             body: JSON.stringify({ amount_ml: Number(amountMl) })
         });
     }
-    async logWeight(arg1, arg2) {
-        const weightKg = (arg2 !== undefined) ? arg2 : arg1;
+
+    async logWeight(weightKg) {
         return this.request('/log-weight', {
             method: 'POST',
             body: JSON.stringify({ weight_kg: Number(weightKg) })
