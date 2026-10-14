@@ -148,6 +148,11 @@ def recommend_meals(
     query = db.query(Food).filter(Food.meal_slot == meal_slot)
     
     if region != "pan_india":
+        region_val = region.value.lower() if hasattr(region, 'value') else str(region).lower()
+        # Use region_val to filter if the Enum is causing issues,
+        # but SQLAlchemy Enums usually handle the Enum object itself.
+        # The error "'north' is not among the defined enum values" suggests
+        # that a string 'north' is being compared to a FoodRegion Enum.
         query = query.filter((Food.region == region) | (Food.region == "pan_india"))
         
     candidates = query.all()
