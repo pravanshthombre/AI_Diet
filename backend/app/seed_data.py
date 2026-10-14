@@ -59,7 +59,6 @@ def seed():
                     iron_mg=row.get('iron', 0),
                     calcium_mg=row.get('calcium', 0),
                     price_inr_per_serving=row.get('price', 0),
-                    allergens=row.get('allergens', ''),
                     prep_method=row.get('prep', ''),
                     seasonality=row.get('season', 'all_year'),
                     ingredients=row.get('ingredients', ''),

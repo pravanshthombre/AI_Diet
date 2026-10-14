@@ -36,8 +36,8 @@ def generate_daily_plan(db: Session, user: User) -> dict:
         meals_per_day=user.meals_per_day or 4,
     )
 
-    allergies = _parse_csv_field(user.allergies)
-    food_dislikes = _parse_csv_field(user.food_dislikes)
+    allergies = _parse_csv_field(getattr(user, 'allergies', ''))
+    food_dislikes = _parse_csv_field(getattr(user, 'food_dislikes', ''))
 
     plan = {}
     totals = {"calories": 0, "protein": 0, "carbs": 0, "fat": 0, "fiber": 0, "cost": 0}
