@@ -60,7 +60,8 @@ def calculate_bmi(weight_kg: float, height_cm: float) -> dict:
 # BMR  (Mifflin-St Jeor)
 # ─────────────────────────────────────────────
 def calculate_bmr(weight_kg: float, height_cm: float, age: int, sex: str) -> float:
-    if sex.lower() == "male":
+    sex_val = sex.value.lower() if hasattr(sex, 'value') else str(sex).lower()
+    if sex_val == "male":
         bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
     else:
         bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age - 161
@@ -83,7 +84,8 @@ def calculate_daily_calorie_target(tdee: float, goal: str, sex: str) -> dict:
     target = tdee * (1 + adjustment)
 
     caution = None
-    floor = MIN_SAFE_CALORIES.get(sex.lower(), 1200)
+    sex_val = sex.value.lower() if hasattr(sex, 'value') else str(sex).lower()
+    floor = MIN_SAFE_CALORIES.get(sex_val, 1200)
     if target < floor:
         target = floor
         caution = f"Target capped at the safe minimum of {floor} kcal/day for {sex}."
@@ -109,13 +111,15 @@ def calculate_nutrition_targets(weight_kg: float, sex: str, goal: str, tdee: flo
     cal = calculate_daily_calorie_target(tdee, goal, sex)
     calories = cal["daily_calorie_target"]
 
+    sex_val = sex.value.lower() if hasattr(sex, 'value') else str(sex).lower()
+
     return {
         "calories": calories,
         "protein_g": round((calories * 0.30) / 4, 1),
         "carbs_g":   round((calories * 0.45) / 4, 1),
         "fat_g":     round((calories * 0.25) / 9, 1),
-        "fiber_g":   38.0 if sex.lower() == "male" else 25.0,
-        "iron_mg":   8.0  if sex.lower() == "male" else 18.0,
+        "fiber_g":   38.0 if sex_val == "male" else 25.0,
+        "iron_mg":   8.0  if sex_val == "male" else 18.0,
         "calcium_mg": 1000.0,
     }
 
