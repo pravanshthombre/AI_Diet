@@ -217,6 +217,59 @@ class MLRanker:
 
         logger.info("Collected %d training samples (%d from feedback, %d from logs)",
                      len(rows_x), len(feedback_rows), len(logged))
+
+        # If not enough real user interactions, enrich with baseline persona data
+        if len(rows_x) < 10:
+            logger.info("Real user interactions (%d) < 10. Generating baseline persona training data...", len(rows_x))
+            base_x, base_y = self.generate_baseline_training_data(db)
+            rows_x.extend(base_x)
+            rows_y.extend(base_y)
+
+        return rows_x, rows_y
+
+    def generate_baseline_training_data(self, db: Session):
+        """
+        Generate synthetic baseline training data using real foods from the database
+        and diverse regional archetypes (per PRD Section 2 & 5.4).
+        Ensures the ML model is trained and active immediately on startup.
+        """
+        from .models import Food
+        from types import SimpleNamespace
+
+        foods = db.query(Food).limit(100).all()
+        if not foods:
+            return [], []
+
+        personas = [
+            SimpleNamespace(region="north", state="Punjab", diet_type="vegetarian", weekly_budget_inr=2000),
+            SimpleNamespace(region="south", state="Tamil Nadu", diet_type="vegetarian", weekly_budget_inr=1800),
+            SimpleNamespace(region="west", state="Maharashtra", diet_type="vegetarian", weekly_budget_inr=1500),
+            SimpleNamespace(region="east", state="West Bengal", diet_type="non_vegetarian", weekly_budget_inr=2500),
+            SimpleNamespace(region="pan_india", state="", diet_type="vegan", weekly_budget_inr=2200),
+        ]
+
+        rows_x = []
+        rows_y = []
+        weights = [0.35, 0.15, 0.10, 0.15, 0.10, 0.15]
+
+        for persona in personas:
+            target_cal = 450.0
+            budget_per_meal = (persona.weekly_budget_inr / 21) * 1.5
+            for food in foods[:20]:
+                features = self.extract_features(
+                    user=persona,
+                    candidate_food=food,
+                    target_calories=target_cal,
+                    feedback_rating=4.0 if food.region == persona.region else None,
+                    per_meal_budget=budget_per_meal,
+                )
+                score = sum(f * w for f, w in zip(features, weights))
+                score += 0.05 * np.sin(features[0] * np.pi)
+                score = float(np.clip(score, 0.05, 1.0))
+
+                rows_x.append(features)
+                rows_y.append(score)
+
         return rows_x, rows_y
 
     def train_model(self, db: Session, save_path: str = None) -> bool:

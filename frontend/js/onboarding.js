@@ -379,8 +379,8 @@ const onboarding = {
             app.state.userId = user.id;
             app.state.user = user;
             app.updateHeaderProfile();
-            app.showToast('Profile created successfully!', 'info');
-            app.navigate('dashboard');
+            app.showToast('Profile created successfully! Here is your AI Diet Plan 🍱', 'info');
+            app.navigate('mealplan');
         } catch (e) {
             console.error('Create user error', e);
             app.showToast('Failed to create profile: ' + e.message, 'error');

@@ -70,6 +70,9 @@ backend/nutricalc.db
 *.swo
 *~
 
-# OS generated
-.DS_Store
-Thumbs.db
+# Logs
+*.log
+
+# Claude config
+.claude/
+

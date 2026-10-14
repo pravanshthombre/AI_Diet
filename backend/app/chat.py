@@ -21,6 +21,7 @@ from . import calculators
 from .recommender import recommend_meals, _parse_csv_field
 from .substitution import find_substitutes
 from .nutrition_gap import calculate_nutrition_gaps
+from .meal_planner import generate_daily_plan
 from .models import User, Food
 
 logger = logging.getLogger("nutricalc.chat")
@@ -28,6 +29,14 @@ logger = logging.getLogger("nutricalc.chat")
 GREETINGS = ["hello", "hi", "hey", "namaste", "good morning", "good evening"]
 
 INTENT_KEYWORDS = {
+    "diet_plan": [
+        "diet plan", "diet chart", "daily diet", "meal plan", "plan my meals",
+        "generate diet plan", "make a diet plan", "create a diet plan", "create diet plan",
+        "generate my diet plan", "give me a diet plan", "show diet plan", "view diet plan",
+        "full day diet", "daily plan", "food plan", "what should i eat", "today's diet",
+        "todays diet", "daily meal plan", "generate plan", "diet routine", "suggest diet plan",
+        "can not generate diet plan", "cannot generate diet plan", "can't generate diet plan",
+    ],
     "substitute": ["change", "swap", "replace", "substitute", "switch", "different"],
     "high_protein": ["high protein", "protein rich", "more protein", "protein food"],
     "low_calorie": ["low calorie", "light meal", "diet food", "fewer calories"],
@@ -76,7 +85,14 @@ def _detect_intent_fuzzy(msg: str) -> str | None:
     Detect intent using both exact and fuzzy keyword matching.
     Returns the best-matching intent or None.
     """
-    words = msg.split()
+    # Fast pass: Dedicated detection for diet plan requests
+    if (
+        ("diet" in msg and any(w in msg for w in ["plan", "chart", "routine", "generate", "make", "create"]))
+        or ("meal" in msg and any(w in msg for w in ["plan", "routine", "schedule"]))
+        or ("what should i eat" in msg)
+        or ("food plan" in msg)
+    ):
+        return "diet_plan"
 
     # Pass 1: Exact substring matching (fast, preferred)
     for intent, keywords in INTENT_KEYWORDS.items():
@@ -117,6 +133,7 @@ def process_chat(db: Session, user_id: int, message: str) -> dict:
     if any(g in msg for g in GREETINGS):
         return {
             "reply": f"Hi {user.name}! 👋 I'm your NutriCalc assistant. I can help you with:\n"
+                     f"• Generating your full day plan (\"generate diet plan\")\n"
                      f"• Finding meals (\"suggest a high protein lunch\")\n"
                      f"• Swapping foods (\"change my breakfast\")\n"
                      f"• Nutrition info (\"what's my BMI?\")\n"
@@ -137,6 +154,64 @@ def process_chat(db: Session, user_id: int, message: str) -> dict:
     intent = _detect_intent_fuzzy(msg)
 
     logger.info("Chat message from user %d: '%s' → intent=%s", user_id, msg[:80], intent)
+
+    if intent == "diet_plan":
+        plan = generate_daily_plan(db, user)
+        timing = plan.get("meal_timing") or {}
+        water = plan.get("water") or {}
+
+        slot_names = [
+            ("breakfast", "☀️ Breakfast", timing.get("breakfast", "08:00")),
+            ("lunch", "🍛 Lunch", timing.get("lunch", "13:00")),
+            ("snack", "🫖 Evening Snack", timing.get("snack", "17:00")),
+            ("dinner", "🌙 Dinner", timing.get("dinner", "20:30")),
+        ]
+
+        lines = [
+            f"🍱 **AI-Generated Daily Diet Plan for {user.name}**\n",
+            f"🎯 **Target:** {daily_cal:.0f} kcal (Goal: {user.goal.replace('_', ' ').title()}) | "
+            f"🥩 {plan['total_protein']}g Protein | 🌾 {plan['total_carbs']}g Carbs | 🧈 {plan['total_fat']}g Fat\n",
+            f"💧 **Hydration Goal:** {water.get('liters_per_day', 2.0)}L ({water.get('glasses_per_day', 8)} glasses spaced throughout the day)\n",
+        ]
+
+        for slot_key, slot_label, slot_time in slot_names:
+            items = plan.get(slot_key, [])
+            if not items:
+                continue
+            primary = items[0]
+            f = primary["food"]
+            reason_badge = f" _{primary['reason']}_" if primary.get("reason") else ""
+            lines.append(f"**{slot_label}** (~{slot_time}):")
+            lines.append(
+                f"• **{f.name}** — {f.calories_per_serving:.0f} kcal, "
+                f"{f.protein_g:.0f}g protein, ₹{f.price_inr_per_serving:.0f}{reason_badge}"
+            )
+            alts = [it["food"].name for it in items[1:]]
+            if alts:
+                lines.append(f"  _Alternatives: {', '.join(alts)}_")
+            lines.append("")
+
+        lines.append(
+            f"📊 **Daily Total:** {plan['total_calories']:.0f} kcal | ₹{plan['total_cost']:.0f} estimated budget\n\n"
+            f"💡 _Tip: You can visit the **Diet Plan** tab to swap any meal with alternatives or click 'Eaten' to log it into your daily tracker!_"
+        )
+        reply = "\n".join(lines)
+        return {
+            "reply": reply,
+            "intent": "diet_plan",
+            "data": {
+                "total_calories": plan["total_calories"],
+                "total_protein": plan["total_protein"],
+                "total_carbs": plan["total_carbs"],
+                "total_fat": plan["total_fat"],
+                "total_cost": plan["total_cost"],
+                "water": water,
+                "slots": {
+                    s: [{"food_id": it["food"].id, "name": it["food"].name, "calories": it["food"].calories_per_serving} for it in plan.get(s, [])]
+                    for s in ["breakfast", "lunch", "dinner", "snack"]
+                }
+            }
+        }
 
     if intent == "explain_warning":
         gaps = calculate_nutrition_gaps(db, user_id, user.sex, user.weight_kg, user.goal, tdee, days=3)
@@ -225,6 +300,7 @@ def process_chat(db: Session, user_id: int, message: str) -> dict:
     return {
         "reply": f"I can help you with meal suggestions, nutrition info, food swaps, and more! "
                  f"Try asking:\n"
+                 f"• \"Generate my daily diet plan\"\n"
                  f"• \"Suggest a high protein lunch\"\n"
                  f"• \"What's my BMI?\"\n"
                  f"• \"Show me budget-friendly dinners\"\n"

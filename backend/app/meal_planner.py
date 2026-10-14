@@ -23,17 +23,24 @@ def generate_daily_plan(db: Session, user: User) -> dict:
     Returns one primary pick per slot plus alternatives; totals reflect
     the primary pick only so daily calories stay realistic.
     """
-    bmr = calculators.calculate_bmr(user.weight_kg, user.height_cm, user.age, user.sex)
-    tdee = calculators.calculate_tdee(bmr, user.activity_level)
-    cal_plan = calculators.calculate_daily_calorie_target(tdee, user.goal, user.sex)
+    weight = float(getattr(user, "weight_kg", None) or 70.0)
+    height = float(getattr(user, "height_cm", None) or 170.0)
+    age = int(getattr(user, "age", None) or 28)
+    sex = str(getattr(user, "sex", None) or "female")
+    act = str(getattr(user, "activity_level", None) or "moderate")
+    goal = str(getattr(user, "goal", None) or "maintain")
+
+    bmr = calculators.calculate_bmr(weight, height, age, sex)
+    tdee = calculators.calculate_tdee(bmr, act)
+    cal_plan = calculators.calculate_daily_calorie_target(tdee, goal, sex)
     daily_cal = cal_plan["daily_calorie_target"]
 
-    water = calculators.calculate_water_intake(user.weight_kg, user.activity_level)
+    water = calculators.calculate_water_intake(weight, act)
     timing = calculators.calculate_meal_timing(
-        wake_time=user.wake_time or "07:00",
-        sleep_time=user.sleep_time or "23:00",
-        exercise_time=user.exercise_time or "",
-        meals_per_day=user.meals_per_day or 4,
+        wake_time=getattr(user, "wake_time", None) or "07:00",
+        sleep_time=getattr(user, "sleep_time", None) or "23:00",
+        exercise_time=getattr(user, "exercise_time", None) or "",
+        meals_per_day=getattr(user, "meals_per_day", None) or 4,
     )
 
     allergies = _parse_csv_field(getattr(user, 'allergies', ''))

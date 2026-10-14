@@ -56,15 +56,16 @@ def _apply_hard_constraints(
     food_dislikes: Optional[List[str]] = None,
 ) -> List[Food]:
     """Constraints that must NEVER be violated."""
+    diet_val = diet_type.value.lower() if hasattr(diet_type, 'value') else str(diet_type or "vegetarian").lower()
     filtered = []
     for f in foods:
-        if diet_type == "jain" and not f.is_jain_friendly:
+        if diet_val == "jain" and not f.is_jain_friendly:
             continue
-        if diet_type == "vegan" and f.diet_type not in ("vegan",):
+        if diet_val == "vegan" and f.diet_type not in ("vegan",):
             continue
-        if diet_type == "vegetarian" and f.diet_type == "non_vegetarian":
+        if diet_val in ("vegetarian", "veg") and f.diet_type == "non_vegetarian":
             continue
-        if diet_type == "eggetarian" and f.diet_type == "non_vegetarian":
+        if diet_val == "eggetarian" and f.diet_type == "non_vegetarian":
             continue
 
         if allergies:
@@ -147,13 +148,9 @@ def recommend_meals(
     # 1. Primary regional candidates
     query = db.query(Food).filter(Food.meal_slot == meal_slot)
     
-    if region != "pan_india":
-        region_val = region.value.lower() if hasattr(region, 'value') else str(region).lower()
-        # Use region_val to filter if the Enum is causing issues,
-        # but SQLAlchemy Enums usually handle the Enum object itself.
-        # The error "'north' is not among the defined enum values" suggests
-        # that a string 'north' is being compared to a FoodRegion Enum.
-        query = query.filter((Food.region == region) | (Food.region == "pan_india"))
+    region_val = region.value.lower() if hasattr(region, 'value') else str(region or "pan_india").lower()
+    if region_val != "pan_india":
+        query = query.filter((Food.region == region_val) | (Food.region == "pan_india"))
         
     candidates = query.all()
 
@@ -218,9 +215,10 @@ def recommend_meals(
     }
 
     positive_ids = liked_ids | logged_ids | preferred_ids
-    candidates = [f for f in candidates if f.id not in disliked_ids]
-
-    if not candidates:
+    non_disliked = [f for f in candidates if f.id not in disliked_ids]
+    if non_disliked:
+        candidates = non_disliked
+    elif not candidates:
         return []
 
     user = db.query(User).filter(User.id == user_id).first()

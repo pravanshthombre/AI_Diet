@@ -210,13 +210,21 @@ async def request_logging_middleware(request: Request, call_next):
 
     try:
         response = await call_next(request)
+    except HTTPException as he:
+        duration = time.time() - start_time
+        logger.warning("[%s] %s %s → %d (%.2fs) %s",
+                       request_id, request.method, request.url.path, he.status_code, duration, str(he.detail))
+        return JSONResponse(
+            status_code=he.status_code,
+            content={"detail": he.detail, "request_id": request_id},
+        )
     except Exception as e:
         duration = time.time() - start_time
         logger.error("[%s] %s %s → 500 (%.2fs) %s",
-                     request_id, request.method, request.url.path, duration, str(e))
+                     request_id, request.method, request.url.path, duration, str(e), exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error", "request_id": request_id},
+            content={"detail": f"Internal server error: {str(e)}", "request_id": request_id},
         )
 
     duration = time.time() - start_time
@@ -438,12 +446,22 @@ def get_recommendations(
 # ═══════════════════════════════════════════════════════════════════
 
 @app.get("/diet-plan")
-def get_diet_plan(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    plan = generate_daily_plan(db, current_user)
+def get_diet_plan(
+    user_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    target_user = current_user
+    if user_id and not os.getenv("SUPABASE_JWT_SECRET"):
+        specific_user = db.query(models.User).filter(models.User.id == user_id).first()
+        if specific_user:
+            target_user = specific_user
+
+    plan = generate_daily_plan(db, target_user)
 
     # Serialize food objects
     for slot in ["breakfast", "lunch", "dinner", "snack"]:
-        for item in plan[slot]:
+        for item in plan.get(slot, []):
             item["food"] = schemas.FoodOut.model_validate(item["food"])
 
     return plan

@@ -159,6 +159,27 @@ def test_ai_chat(db, user):
     print("[PASS] AI Chat returned valid response")
 
 
+def test_ai_chat_diet_plan(db, user):
+    """Chat should generate a full daily diet plan on request."""
+    chat_res = chat.process_chat(db, user.id, "generate diet plan")
+    assert chat_res["intent"] == "diet_plan"
+    assert "Breakfast" in chat_res["reply"]
+    assert "Lunch" in chat_res["reply"]
+    assert "Dinner" in chat_res["reply"]
+    assert chat_res["data"] is not None
+    print("[PASS] AI Chat generates diet plan successfully")
+
+
+def test_ml_ranker_trained(db):
+    """ML ranker should be trained and active."""
+    from app.ml_ranker import ranker
+    if not ranker.is_trained:
+        ranker.train_model(db)
+    assert ranker.is_trained is True
+    assert ranker.model is not None
+    print("[PASS] ML Ranker model trained and active")
+
+
 def test_food_dislikes_filter(db, user):
     """Disliked foods must be filtered from recommendations."""
     original_dislikes = user.food_dislikes or ""
@@ -239,6 +260,8 @@ if __name__ == "__main__":
         test_ml_recommender(db, u)
         test_substitution_engine(db, u)
         test_ai_chat(db, u)
+        test_ai_chat_diet_plan(db, u)
+        test_ml_ranker_trained(db)
         test_food_dislikes_filter(db, u)
         test_meal_plan_totals_use_primary_pick(db, u)
         test_feature_normalization(db)

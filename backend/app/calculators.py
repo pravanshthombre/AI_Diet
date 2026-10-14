@@ -17,8 +17,11 @@ ACTIVITY_MULTIPLIERS = {
 
 GOAL_ADJUSTMENT = {
     "lose": -0.20,       # 20 % deficit
+    "lose_weight": -0.20,
     "maintain": 0.0,
     "gain": 0.15,        # 15 % surplus
+    "gain_weight": 0.15,
+    "muscle_gain": 0.15,
 }
 
 MIN_SAFE_CALORIES = {"male": 1500, "female": 1200}
@@ -80,7 +83,13 @@ def calculate_tdee(bmr: float, activity_level: str) -> float:
 # Daily calorie target
 # ─────────────────────────────────────────────
 def calculate_daily_calorie_target(tdee: float, goal: str, sex: str) -> dict:
-    adjustment = GOAL_ADJUSTMENT.get(goal, 0.0)
+    goal_key = str(goal or "").lower().strip()
+    if "lose" in goal_key:
+        adjustment = -0.20
+    elif "gain" in goal_key:
+        adjustment = 0.15
+    else:
+        adjustment = GOAL_ADJUSTMENT.get(goal_key, 0.0)
     target = tdee * (1 + adjustment)
 
     caution = None
