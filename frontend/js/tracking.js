@@ -3,6 +3,16 @@ const tracking = {
     waterGoalMl: 2500,
 
     async init() {
+        // Bindings first so buttons always respond
+        const addWaterBtn = document.getElementById('btn-add-water');
+        if (addWaterBtn) addWaterBtn.onclick = () => this.logWater(250);
+        const logWtBtn = document.getElementById('btn-log-weight');
+        if (logWtBtn) logWtBtn.onclick = () => this.logWeight();
+        const logMealBtn = document.getElementById('btn-log-meal');
+        if (logMealBtn) logMealBtn.onclick = () => this.logMeal();
+        const foodInput = document.getElementById('input-log-food');
+        if (foodInput) foodInput.addEventListener('input', () => this.searchFoods(foodInput.value));
+
         if (!app.state.user && app.state.userId) {
             await app.loadUser();
         }
@@ -18,23 +28,6 @@ const tracking = {
             this.waterAmount = track.actual_water_ml || 0;
             this.updateWaterUI();
 
-            // Setup bindings
-            const addWaterBtn = document.getElementById('btn-add-water');
-            if (addWaterBtn) addWaterBtn.onclick = () => this.logWater(250);
-
-            const logWtBtn = document.getElementById('btn-log-weight');
-            if (logWtBtn) logWtBtn.onclick = () => this.logWeight();
-
-            const logMealBtn = document.getElementById('btn-log-meal');
-            if (logMealBtn) logMealBtn.onclick = () => this.logMeal();
-
-            // Setup food search autocomplete
-            const foodInput = document.getElementById('input-log-food');
-            if (foodInput) {
-                foodInput.addEventListener('input', () => this.searchFoods(foodInput.value));
-            }
-
-            // Initialize AI Food Scanner
             this.initScanner();
         } catch (e) {
             console.error('Tracking init error', e);
@@ -76,10 +69,19 @@ const tracking = {
     },
 
     async logWater(amount) {
+        if (!app.state.userId) {
+            app.showToast('Please log in first to track hydration', 'error');
+            return;
+        }
         try {
-            const result = await api.logWater(app.state.userId, amount);
-            this.waterAmount = result.total_today_ml || (this.waterAmount + amount);
+            const result = await api.logWater(amount);
+            this.waterAmount = (result && typeof result.total_today_ml === 'number') 
+                ? result.total_today_ml 
+                : (this.waterAmount + amount);
             this.updateWaterUI();
+            if (window.dashboard && typeof dashboard.init === 'function' && app.state.currentView === 'dashboard') {
+                dashboard.init();
+            }
             app.showToast(`Logged +${amount}ml water! Stay hydrated.`);
         } catch (e) {
             app.showToast('Failed to log water', 'error');
@@ -87,6 +89,10 @@ const tracking = {
     },
 
     async logWeight() {
+        if (!app.state.userId) {
+            app.showToast('Please log in first to log weight', 'error');
+            return;
+        }
         const input = document.getElementById('input-log-weight');
         const val = parseFloat(input.value);
         if (!val || val < 20 || val > 300) {
@@ -94,10 +100,15 @@ const tracking = {
             return;
         }
         try {
-            await api.logWeight(app.state.userId, val);
+            await api.logWeight(val);
             app.showToast(`Weight updated to ${val} kg!`);
             input.value = '';
-            app.state.user.weight_kg = val;
+            if (app.state.user) {
+                app.state.user.weight_kg = val;
+            }
+            if (window.dashboard && typeof dashboard.init === 'function') {
+                dashboard.init();
+            }
         } catch (e) {
             app.showToast('Failed to log weight', 'error');
         }
@@ -152,6 +163,10 @@ const tracking = {
     },
 
     async logMeal() {
+        if (!app.state.userId) {
+            app.showToast('Please log in first to log meals', 'error');
+            return;
+        }
         const input = document.getElementById('input-log-food');
         const sel = document.getElementById('sel-log-meal');
         const srv = document.getElementById('input-log-servings');

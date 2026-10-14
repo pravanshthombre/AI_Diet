@@ -141,16 +141,18 @@ class ApiClient {
             body: JSON.stringify({ food_id: foodId, meal_slot: mealSlot, servings: servings || 1.0 })
         });
     }
-    async logWater(amountMl) {
+    async logWater(arg1, arg2) {
+        const amountMl = (arg2 !== undefined) ? arg2 : arg1;
         return this.request('/log-water', {
             method: 'POST',
-            body: JSON.stringify({ amount_ml: amountMl })
+            body: JSON.stringify({ amount_ml: Number(amountMl) })
         });
     }
-    async logWeight(weightKg) {
+    async logWeight(arg1, arg2) {
+        const weightKg = (arg2 !== undefined) ? arg2 : arg1;
         return this.request('/log-weight', {
             method: 'POST',
-            body: JSON.stringify({ weight_kg: weightKg })
+            body: JSON.stringify({ weight_kg: Number(weightKg) })
         });
     }
 
@@ -162,7 +164,8 @@ class ApiClient {
     }
 
     // ── Chat ──
-    async chat(message) {
+    async chat(arg1, arg2) {
+        const message = (arg2 !== undefined) ? arg2 : arg1;
         return this.request('/chat', {
             method: 'POST',
             body: JSON.stringify({ message })
@@ -181,13 +184,15 @@ class ApiClient {
     async getPreferences() {
         return this.request('/food-preferences');
     }
-    async addPreference(foodId) {
+    async addPreference(arg1, arg2) {
+        const foodId = (arg2 !== undefined) ? arg2 : arg1;
         return this.request('/food-preferences', {
             method: 'POST',
             body: JSON.stringify({ food_id: foodId })
         });
     }
-    async removePreference(foodId) {
+    async removePreference(arg1, arg2) {
+        const foodId = (arg2 !== undefined) ? arg2 : arg1;
         return this.request(`/food-preferences/${foodId}`, {
             method: 'DELETE'
         });
