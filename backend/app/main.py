@@ -520,7 +520,24 @@ def log_water(entry: schemas.WaterLogCreate, db: Session = Depends(get_db), curr
     log = models.WaterLog(user_id=current_user.id, amount_ml=entry.amount_ml)
     db.add(log)
     db.commit()
-    return {"status": "logged", "total_today_ml": _today_water(db, current_user.id)}
+    today_total = _today_water(db, current_user.id)
+    logger.info("User %d logged water: %.0f ml (total today: %.0f ml)", current_user.id, entry.amount_ml, today_total)
+    return {"status": "logged", "total_today_ml": today_total}
+
+
+@app.post("/reset-water")
+def reset_water(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).date()
+    start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+    db.query(models.WaterLog).filter(
+        models.WaterLog.user_id == current_user.id,
+        models.WaterLog.logged_at >= start,
+        models.WaterLog.logged_at < end,
+    ).delete()
+    db.commit()
+    logger.info("User %d reset today's water logs", current_user.id)
+    return {"status": "reset", "total_today_ml": 0.0}
 
 
 @app.post("/log-weight")
@@ -735,7 +752,7 @@ def _today_water(db, user_id, start=None, end=None):
         .filter(models.WaterLog.logged_at < end)
         .all()
     )
-    return sum(l.amount_ml for l in logs)
+    return max(0.0, float(sum(l.amount_ml for l in logs)))
 
 
 # ═══════════════════════════════════════════════════════════════════

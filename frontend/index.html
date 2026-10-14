@@ -300,21 +300,47 @@
 
                     <!-- Water Tracker -->
                     <div class="card">
-                        <h2 class="card-title">💧 Hydration Tracker</h2>
-                        <p class="card-desc">Click glass buttons to log hydration</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <h2 class="card-title" style="margin: 0;">💧 Hydration Tracker</h2>
+                            <span id="water-badge" class="badge" style="background: #e0f2fe; color: #0284c7; font-weight: 700;">Daily Target</span>
+                        </div>
+                        <p class="card-desc">Click any glass button below to log your hydration intake</p>
                         
                         <div class="water-tracker-container">
-                            <div class="water-visual">
-                                <button id="btn-add-water" class="water-glass-btn" title="Add 250ml">+</button>
-                                <div class="water-bar-container">
-                                    <div class="water-fill" id="water-fill-level" style="width: 0%;"></div>
-                                </div>
+                            <!-- Progress Stats Header -->
+                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                                <span id="water-count" class="water-stats-text">0 / 8 glasses (0 / 2000 ml)</span>
+                                <span id="water-pct-label" style="font-weight: 800; color: #0284c7; font-size: 1.05rem;">0%</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                                <span id="water-count" class="water-stats-text">0 / 8 glasses</span>
-                                <button class="btn btn-secondary small" onclick="tracking.logWater(500)">+ 500 ml Bottle</button>
+
+                            <!-- Fluid Progress Bar -->
+                            <div class="water-bar-container" style="width: 100%;">
+                                <div class="water-fill" id="water-fill-level" style="width: 0%;"></div>
                             </div>
-                            <div id="water-reminder" style="color: var(--primary-600); font-weight: 600; margin-top: 16px; text-align: center; font-size: 0.85rem; background: var(--bg-subtle); padding: 8px; border-radius: var(--radius-md);">
+
+                            <!-- Interactive Glasses Grid (Glasses Rendered Here) -->
+                            <div id="water-glasses-grid" class="water-glasses-grid">
+                                <!-- Populated dynamically by tracking.renderGlassesGrid() -->
+                            </div>
+
+                            <!-- Quick Action Buttons -->
+                            <div class="water-actions-row">
+                                <button id="btn-add-water" class="btn btn-primary" onclick="tracking.logWater(250)" style="display: flex; align-items: center; gap: 6px; font-weight: 700;">
+                                    <span>🥛</span> +1 Glass (250 ml)
+                                </button>
+                                <button class="btn btn-secondary" onclick="tracking.logWater(500)" style="display: flex; align-items: center; gap: 6px; font-weight: 700;">
+                                    <span>🍼</span> +1 Bottle (500 ml)
+                                </button>
+                                <button class="btn btn-outline small" onclick="tracking.undoGlass()" style="display: flex; align-items: center; gap: 4px; color: var(--text-muted);">
+                                    <span>↩️</span> -1 Glass
+                                </button>
+                                <button class="btn btn-outline small" onclick="tracking.resetWater()" style="display: flex; align-items: center; gap: 4px; color: #ef4444; border-color: #fca5a5;">
+                                    <span>↺</span> Reset
+                                </button>
+                            </div>
+
+                            <!-- Hydration Interval Reminder -->
+                            <div id="water-reminder" style="color: var(--primary-600); font-weight: 600; margin-top: 10px; text-align: center; font-size: 0.85rem; background: var(--bg-subtle); padding: 8px 14px; border-radius: var(--radius-md); width: 100%;">
                                 ⏰ Calculating reminder...
                             </div>
                         </div>

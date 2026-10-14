@@ -2,6 +2,26 @@ const tracking = {
     waterAmount: 0,
     waterGoalMl: 2500,
 
+    async ensureUser() {
+        if (!app.state.user && app.state.userId) {
+            await app.loadUser();
+        }
+        if (!app.state.userId) {
+            try {
+                const u = await api.getUser();
+                if (u && u.id) {
+                    app.state.user = u;
+                    app.state.userId = u.id;
+                    localStorage.setItem('ai_diet_user_id', u.id);
+                    app.updateHeaderProfile();
+                }
+            } catch (e) {
+                console.warn('Could not auto-load user profile:', e);
+            }
+        }
+        return app.state.user;
+    },
+
     async init() {
         // Bindings first so buttons always respond
         const addWaterBtn = document.getElementById('btn-add-water');
@@ -13,41 +33,51 @@ const tracking = {
         const foodInput = document.getElementById('input-log-food');
         if (foodInput) foodInput.addEventListener('input', () => this.searchFoods(foodInput.value));
 
-        if (!app.state.user && app.state.userId) {
-            await app.loadUser();
-        }
-        if (!app.state.user) return;
+        await this.ensureUser();
         const user = app.state.user;
 
         try {
-            const waterTarget = await api.request(`/calculators/water-intake?weight_kg=${user.weight_kg}&activity_level=${user.activity_level}&climate=moderate`);
-            this.waterGoalMl = (waterTarget.liters_per_day || 2.5) * 1000;
+            if (user) {
+                const waterTarget = await api.request(`/calculators/water-intake?weight_kg=${user.weight_kg}&activity_level=${user.activity_level}&climate=moderate`);
+                this.waterGoalMl = (waterTarget.liters_per_day || 2.5) * 1000;
+            } else {
+                this.waterGoalMl = 2500;
+            }
 
             const today = new Date().toISOString().split('T')[0];
             const track = await api.getTracking(today);
-            this.waterAmount = track.actual_water_ml || 0;
+            this.waterAmount = (track && typeof track.actual_water_ml === 'number') ? track.actual_water_ml : 0;
             this.updateWaterUI();
 
             this.initScanner();
         } catch (e) {
             console.error('Tracking init error', e);
+            this.updateWaterUI();
         }
     },
 
     updateWaterUI() {
-        const glasses = Math.floor(this.waterAmount / 250);
-        const targetGlasses = Math.floor(this.waterGoalMl / 250) || 8;
+        const glasses = Math.max(0, Math.floor(this.waterAmount / 250));
+        const targetGlasses = Math.max(1, Math.round(this.waterGoalMl / 250) || 8);
         
         const countEl = document.getElementById('water-count');
         if (countEl) {
-            countEl.innerText = `${glasses} / ${targetGlasses} glasses (${this.waterAmount} / ${this.waterGoalMl} ml)`;
+            countEl.innerText = `${glasses} / ${targetGlasses} glasses (${Math.round(this.waterAmount)} / ${Math.round(this.waterGoalMl)} ml)`;
+        }
+
+        const pct = Math.min(100, Math.round((this.waterAmount / this.waterGoalMl) * 100)) || 0;
+        const pctEl = document.getElementById('water-pct-label');
+        if (pctEl) {
+            pctEl.innerText = `${pct}%`;
         }
         
-        let pct = Math.min(100, (this.waterAmount / this.waterGoalMl) * 100);
         const fillEl = document.getElementById('water-fill-level');
         if (fillEl) fillEl.style.width = `${pct}%`;
 
-        // Calculate and update the time reminder (assuming 16 waking hours in a 24-hour period)
+        // Render the interactive glasses grid
+        this.renderGlassesGrid(glasses, targetGlasses);
+
+        // Calculate and update the time reminder (assuming 16 waking hours)
         const wakingHours = 16;
         const intervalHours = wakingHours / targetGlasses;
         const hrs = Math.floor(intervalHours);
@@ -56,7 +86,7 @@ const tracking = {
         const reminderEl = document.getElementById('water-reminder');
         if (reminderEl) {
             if (glasses >= targetGlasses) {
-                reminderEl.innerHTML = `🌟 Daily goal met! Great job staying hydrated.`;
+                reminderEl.innerHTML = `🌟 Daily hydration goal met! Outstanding job keeping your body refreshed!`;
                 reminderEl.style.color = '#10b981';
             } else {
                 const timeString = hrs > 0 
@@ -68,22 +98,95 @@ const tracking = {
         }
     },
 
+    renderGlassesGrid(currentGlasses, targetGlasses) {
+        const grid = document.getElementById('water-glasses-grid');
+        if (!grid) return;
+
+        // Render at least targetGlasses, or more if user exceeded their goal
+        const totalToRender = Math.max(targetGlasses, currentGlasses);
+        let html = '';
+
+        for (let i = 1; i <= totalToRender; i++) {
+            const isFilled = i <= currentGlasses;
+            const glassClass = isFilled ? 'water-glass-card filled' : 'water-glass-card empty';
+            const icon = isFilled ? '🥛' : '🫙';
+            const status = isFilled ? '✓ 250ml' : '+250ml';
+            const tooltip = isFilled ? `Glass ${i} (Logged) · Click to remove` : `Glass ${i} · Click to log`;
+
+            html += `
+                <div class="${glassClass}" onclick="tracking.clickGlass(${i})" title="${tooltip}">
+                    <div class="glass-icon">${icon}</div>
+                    <div class="glass-label">Glass ${i}</div>
+                    <div class="glass-status">${status}</div>
+                </div>
+            `;
+        }
+
+        grid.innerHTML = html;
+    },
+
+    async clickGlass(glassNumber) {
+        const currentGlasses = Math.floor(this.waterAmount / 250);
+        if (glassNumber === currentGlasses) {
+            // Toggling the last glass removes 250ml
+            await this.undoGlass();
+        } else if (glassNumber > currentGlasses) {
+            // Fill up to this glass
+            const diff = (glassNumber - currentGlasses) * 250;
+            await this.logWater(diff);
+        } else {
+            // Revert back down to glassNumber - 1
+            const diff = (glassNumber - 1 - currentGlasses) * 250;
+            await this.logWater(diff);
+        }
+    },
+
+    async undoGlass() {
+        if (this.waterAmount <= 0) {
+            app.showToast("No water logged yet today to remove", "info");
+            return;
+        }
+        await this.logWater(-250);
+    },
+
+    async resetWater() {
+        if (!confirm("Are you sure you want to reset today's water intake to 0 ml?")) return;
+        try {
+            await api.resetWater();
+            this.waterAmount = 0;
+            this.updateWaterUI();
+            if (window.dashboard && typeof dashboard.init === 'function') {
+                dashboard.init();
+            }
+            app.showToast("Water tracker reset to 0 ml");
+        } catch (e) {
+            // Fallback: log negative amount
+            await this.logWater(-this.waterAmount);
+        }
+    },
+
     async logWater(amount) {
+        await this.ensureUser();
         if (!app.state.userId) {
-            app.showToast('Please log in first to track hydration', 'error');
+            app.showToast('Please set up or select a user profile first', 'error');
             return;
         }
         try {
             const result = await api.logWater(amount);
             this.waterAmount = (result && typeof result.total_today_ml === 'number') 
                 ? result.total_today_ml 
-                : (this.waterAmount + amount);
+                : Math.max(0, this.waterAmount + amount);
             this.updateWaterUI();
             if (window.dashboard && typeof dashboard.init === 'function' && app.state.currentView === 'dashboard') {
                 dashboard.init();
             }
-            app.showToast(`Logged +${amount}ml water! Stay hydrated.`);
+            if (amount > 0) {
+                app.showToast(`Logged +${amount}ml water! Stay hydrated. 💧`);
+            } else if (amount < 0) {
+                app.showToast(`Removed ${Math.abs(amount)}ml water.`);
+            }
         } catch (e) {
+            console.error('Failed to log water', e);
             app.showToast('Failed to log water', 'error');
         }
     },

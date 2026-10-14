@@ -141,6 +141,10 @@ class ApiClient {
         });
     }
 
+    async resetWater() {
+        return this.request('/reset-water', { method: 'POST' });
+    }
+
     async logWeight(weightKg) {
         return this.request('/log-weight', {
             method: 'POST',

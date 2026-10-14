@@ -25,6 +25,26 @@ const app = {
                 this.navigate(hash);
             }
         } else {
+            // Attempt to restore user profile from active session or local dev user
+            try {
+                const u = await api.getUser();
+                if (u && u.id) {
+                    this.state.user = u;
+                    this.state.userId = u.id;
+                    localStorage.setItem('ai_diet_user_id', u.id);
+                    this.updateHeaderProfile();
+                    const hash = window.location.hash.replace('#', '') || 'dashboard';
+                    if (hash === 'auth') {
+                        this.navigate('dashboard');
+                    } else {
+                        this.navigate(hash);
+                    }
+                    return;
+                }
+            } catch (e) {
+                // No existing user found on backend
+            }
+
             const hash = window.location.hash.replace('#', '');
             if (hash === 'foods') {
                 this.navigate(hash);
