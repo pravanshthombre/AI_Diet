@@ -25,7 +25,7 @@ const tracking = {
     async init() {
         // Bindings first so buttons always respond
         const addWaterBtn = document.getElementById('btn-add-water');
-        if (addWaterBtn) addWaterBtn.onclick = () => this.logWater(250);
+        if (addWaterBtn) addWaterBtn.onclick = () => this.addOneGlass();
         const logWtBtn = document.getElementById('btn-log-weight');
         if (logWtBtn) logWtBtn.onclick = () => this.logWeight();
         const logMealBtn = document.getElementById('btn-log-meal');
@@ -56,7 +56,7 @@ const tracking = {
         }
     },
 
-    updateWaterUI() {
+    updateWaterUI(justRefilledIndex = null) {
         const glasses = Math.max(0, Math.floor(this.waterAmount / 250));
         const targetGlasses = Math.max(1, Math.round(this.waterGoalMl / 250) || 8);
         
@@ -71,11 +71,23 @@ const tracking = {
             pctEl.innerText = `${pct}%`;
         }
         
+        const badgeEl = document.getElementById('water-refilled-badge');
+        if (badgeEl) {
+            badgeEl.innerText = `${glasses} / ${targetGlasses} Refilled`;
+            if (glasses >= targetGlasses) {
+                badgeEl.style.background = '#dcfce7';
+                badgeEl.style.color = '#15803d';
+            } else {
+                badgeEl.style.background = '#e0f2fe';
+                badgeEl.style.color = '#0284c7';
+            }
+        }
+
         const fillEl = document.getElementById('water-fill-level');
         if (fillEl) fillEl.style.width = `${pct}%`;
 
-        // Render the interactive glasses grid
-        this.renderGlassesGrid(glasses, targetGlasses);
+        // Render the interactive glasses refilled diagram
+        this.renderGlassesGrid(glasses, targetGlasses, justRefilledIndex);
 
         // Calculate and update the time reminder (assuming 16 waking hours)
         const wakingHours = 16;
@@ -98,7 +110,49 @@ const tracking = {
         }
     },
 
-    renderGlassesGrid(currentGlasses, targetGlasses) {
+    getGlassDiagramSVG(isFilled, glassNumber) {
+        const uid = 'glass-diag-' + glassNumber;
+        const liquidY = isFilled ? 14 : 58;
+        const surfaceOpacity = isFilled ? 0.95 : 0;
+        
+        return `
+        <svg viewBox="0 0 54 72" class="glass-diagram-svg ${isFilled ? 'filled' : 'empty'}" width="46" height="62" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="${uid}-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#38bdf8"/>
+                    <stop offset="55%" stop-color="#0284c7"/>
+                    <stop offset="100%" stop-color="#0369a1"/>
+                </linearGradient>
+                <clipPath id="${uid}-clip">
+                    <path d="M 8 9 L 13 60 Q 14 65 19 65 L 35 65 Q 40 65 41 60 L 46 9 Z"/>
+                </clipPath>
+            </defs>
+            <!-- Glass Shadow Base -->
+            <ellipse cx="27" cy="67" rx="14" ry="2.5" fill="rgba(2, 132, 199, 0.12)"/>
+            <!-- Glass Back / Body -->
+            <path d="M 8 9 L 13 60 Q 14 65 19 65 L 35 65 Q 40 65 41 60 L 46 9 Z" class="glass-wall-bg"/>
+            <!-- Water Liquid (Clipped to interior) -->
+            <g clip-path="url(#${uid}-clip)">
+                <rect class="glass-liquid-rect" x="0" y="${liquidY}" width="54" height="65" fill="url(#${uid}-grad)"/>
+                <ellipse class="glass-liquid-surface" cx="27" cy="${liquidY}" rx="17" ry="3.5" fill="#bae6fd" opacity="${surfaceOpacity}"/>
+                ${isFilled ? `
+                <circle cx="20" cy="46" r="1.5" fill="rgba(255,255,255,0.7)"/>
+                <circle cx="33" cy="36" r="2.2" fill="rgba(255,255,255,0.6)"/>
+                <circle cx="26" cy="24" r="1.8" fill="rgba(255,255,255,0.8)"/>
+                ` : ''}
+            </g>
+            <!-- Glass Stroke -->
+            <path d="M 8 9 L 13 60 Q 14 65 19 65 L 35 65 Q 40 65 41 60 L 46 9 Z" class="glass-wall-stroke" fill="none"/>
+            <!-- Glass Rim -->
+            <ellipse cx="27" cy="9" rx="19" ry="3.8" class="glass-rim"/>
+            <!-- Glass Sheen Highlights -->
+            <path d="M 12 15 L 15 56" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M 42 15 L 39 56" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        `;
+    },
+
+    renderGlassesGrid(currentGlasses, targetGlasses, justRefilledIndex = null) {
         const grid = document.getElementById('water-glasses-grid');
         if (!grid) return;
 
@@ -108,16 +162,22 @@ const tracking = {
 
         for (let i = 1; i <= totalToRender; i++) {
             const isFilled = i <= currentGlasses;
-            const glassClass = isFilled ? 'water-glass-card filled' : 'water-glass-card empty';
-            const icon = isFilled ? '🥛' : '🫙';
-            const status = isFilled ? '✓ 250ml' : '+250ml';
-            const tooltip = isFilled ? `Glass ${i} (Logged) · Click to remove` : `Glass ${i} · Click to log`;
+            const isJustRefilled = i === justRefilledIndex;
+            let glassClass = isFilled ? 'water-glass-card filled' : 'water-glass-card empty';
+            if (isJustRefilled) glassClass += ' just-refilled';
+
+            const statusBadge = isFilled 
+                ? '<span class="glass-status-badge refilled">✓ Refilled</span>' 
+                : '<span class="glass-status-badge empty">+250 ml</span>';
+            const tooltip = isFilled 
+                ? `Glass ${i} (Refilled) · Click to remove` 
+                : `Glass ${i} · Click to refill 1 glass`;
 
             html += `
                 <div class="${glassClass}" onclick="tracking.clickGlass(${i})" title="${tooltip}">
-                    <div class="glass-icon">${icon}</div>
+                    ${this.getGlassDiagramSVG(isFilled, i)}
                     <div class="glass-label">Glass ${i}</div>
-                    <div class="glass-status">${status}</div>
+                    ${statusBadge}
                 </div>
             `;
         }
@@ -125,19 +185,19 @@ const tracking = {
         grid.innerHTML = html;
     },
 
+    async addOneGlass() {
+        // Adds strictly only one glass (250 ml)
+        await this.logWater(250);
+    },
+
     async clickGlass(glassNumber) {
         const currentGlasses = Math.floor(this.waterAmount / 250);
-        if (glassNumber === currentGlasses) {
-            // Toggling the last glass removes 250ml
+        if (glassNumber <= currentGlasses) {
+            // Clicking any refilled glass removes only one glass
             await this.undoGlass();
-        } else if (glassNumber > currentGlasses) {
-            // Fill up to this glass
-            const diff = (glassNumber - currentGlasses) * 250;
-            await this.logWater(diff);
         } else {
-            // Revert back down to glassNumber - 1
-            const diff = (glassNumber - 1 - currentGlasses) * 250;
-            await this.logWater(diff);
+            // Clicking an empty glass adds only one glass
+            await this.addOneGlass();
         }
     },
 
@@ -172,18 +232,26 @@ const tracking = {
             return;
         }
         try {
+            const previousGlasses = Math.floor(this.waterAmount / 250);
             const result = await api.logWater(amount);
             this.waterAmount = (result && typeof result.total_today_ml === 'number') 
                 ? result.total_today_ml 
                 : Math.max(0, this.waterAmount + amount);
-            this.updateWaterUI();
+            
+            const newGlasses = Math.floor(this.waterAmount / 250);
+            const justRefilledIndex = (amount > 0 && newGlasses > previousGlasses) ? newGlasses : null;
+
+            this.updateWaterUI(justRefilledIndex);
+
             if (window.dashboard && typeof dashboard.init === 'function' && app.state.currentView === 'dashboard') {
                 dashboard.init();
             }
-            if (amount > 0) {
+            if (amount === 250) {
+                app.showToast(`Logged +1 glass (250ml)! Glass ${newGlasses} refilled. 💧`);
+            } else if (amount > 0) {
                 app.showToast(`Logged +${amount}ml water! Stay hydrated. 💧`);
             } else if (amount < 0) {
-                app.showToast(`Removed ${Math.abs(amount)}ml water.`);
+                app.showToast(`Removed 1 glass (${Math.abs(amount)}ml) water.`);
             }
         } catch (e) {
             console.error('Failed to log water', e);
