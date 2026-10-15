@@ -19,6 +19,10 @@ const tracking = {
                 console.warn('Could not auto-load user profile:', e);
             }
         }
+        if (!app.state.userId) {
+            app.state.userId = 1;
+            localStorage.setItem('ai_diet_user_id', '1');
+        }
         return app.state.user;
     },
 
@@ -37,16 +41,32 @@ const tracking = {
         const user = app.state.user;
 
         try {
-            if (user) {
-                const waterTarget = await api.request(`/calculators/water-intake?weight_kg=${user.weight_kg}&activity_level=${user.activity_level}&climate=moderate`);
-                this.waterGoalMl = (waterTarget.liters_per_day || 2.5) * 1000;
+            if (user && user.weight_kg) {
+                try {
+                    const waterTarget = await api.request(`/calculators/water-intake?weight_kg=${user.weight_kg}&activity_level=${user.activity_level}&climate=moderate`);
+                    const rawLiters = (waterTarget && waterTarget.liters_per_day) ? waterTarget.liters_per_day : 2.5;
+                    const calculatedGlasses = Math.max(1, Math.round((rawLiters * 1000) / 250) || 8);
+                    this.waterGoalMl = calculatedGlasses * 250;
+                } catch (calcErr) {
+                    this.waterGoalMl = 2250;
+                }
             } else {
                 this.waterGoalMl = 2500;
             }
 
             const today = new Date().toISOString().split('T')[0];
-            const track = await api.getTracking(today);
-            this.waterAmount = (track && typeof track.actual_water_ml === 'number') ? track.actual_water_ml : 0;
+            try {
+                const track = await api.getTracking(today);
+                if (track && typeof track.actual_water_ml === 'number') {
+                    this.waterAmount = track.actual_water_ml;
+                    localStorage.setItem('ai_diet_today_water_' + today, this.waterAmount);
+                }
+            } catch (netErr) {
+                const saved = localStorage.getItem('ai_diet_today_water_' + today);
+                if (saved !== null) {
+                    this.waterAmount = Number(saved) || 0;
+                }
+            }
             this.updateWaterUI();
 
             this.initScanner();
@@ -59,13 +79,15 @@ const tracking = {
     updateWaterUI(justRefilledIndex = null) {
         const glasses = Math.max(0, Math.floor(this.waterAmount / 250));
         const targetGlasses = Math.max(1, Math.round(this.waterGoalMl / 250) || 8);
+        const targetMl = targetGlasses * 250;
+        const currentMl = Math.round(this.waterAmount);
         
         const countEl = document.getElementById('water-count');
         if (countEl) {
-            countEl.innerText = `${glasses} / ${targetGlasses} glasses (${Math.round(this.waterAmount)} / ${Math.round(this.waterGoalMl)} ml)`;
+            countEl.innerText = `${glasses} / ${targetGlasses} glasses (${currentMl} / ${targetMl} ml)`;
         }
 
-        const pct = Math.min(100, Math.round((this.waterAmount / this.waterGoalMl) * 100)) || 0;
+        const pct = Math.min(100, Math.round((currentMl / targetMl) * 100)) || 0;
         const pctEl = document.getElementById('water-pct-label');
         if (pctEl) {
             pctEl.innerText = `${pct}%`;
@@ -83,8 +105,44 @@ const tracking = {
             }
         }
 
+        const waterBadge = document.getElementById('water-badge');
+        if (waterBadge) {
+            if (glasses >= targetGlasses) {
+                waterBadge.style.background = '#dcfce7';
+                waterBadge.style.color = '#15803d';
+                waterBadge.innerText = '🎯 Goal Met!';
+            } else {
+                waterBadge.style.background = '#e0f2fe';
+                waterBadge.style.color = '#0284c7';
+                waterBadge.innerText = 'Daily Target';
+            }
+        }
+
         const fillEl = document.getElementById('water-fill-level');
         if (fillEl) fillEl.style.width = `${pct}%`;
+
+        // Update goal pin mark on progress bar
+        const goalPin = document.getElementById('water-goal-pin');
+        const goalPinText = document.getElementById('water-goal-pin-text');
+        if (goalPin) {
+            if (glasses >= targetGlasses) {
+                goalPin.classList.add('reached');
+                if (goalPinText) goalPinText.innerText = 'Goal Met! 🌟';
+            } else {
+                goalPin.classList.remove('reached');
+                if (goalPinText) goalPinText.innerText = 'Daily Goal';
+            }
+        }
+
+        // Render tick milestones along the progress bar for every glass
+        const ticksContainer = document.getElementById('water-bar-ticks');
+        if (ticksContainer) {
+            let ticksHtml = '';
+            for (let t = 1; t < targetGlasses; t++) {
+                ticksHtml += `<div class="water-bar-tick" title="Glass ${t} (${t * 250} ml)"></div>`;
+            }
+            ticksContainer.innerHTML = ticksHtml;
+        }
 
         // Render the interactive glasses refilled diagram
         this.renderGlassesGrid(glasses, targetGlasses, justRefilledIndex);
@@ -104,7 +162,7 @@ const tracking = {
                 const timeString = hrs > 0 
                     ? `${hrs}h ${mins > 0 ? mins + 'm' : ''}`.trim()
                     : `${mins} mins`;
-                reminderEl.innerHTML = `⏰ Tip: Drink 1 glass (250ml) every <strong>${timeString}</strong>`;
+                reminderEl.innerHTML = `⏰ Tip: Drink 1 glass (250ml) every <strong>${timeString}</strong> to reach your daily goal`;
                 reminderEl.style.color = 'var(--primary-600)';
             }
         }
@@ -211,51 +269,71 @@ const tracking = {
 
     async resetWater() {
         if (!confirm("Are you sure you want to reset today's water intake to 0 ml?")) return;
+        const today = new Date().toISOString().split('T')[0];
+        this.waterAmount = 0;
+        this.updateWaterUI();
+        try {
+            localStorage.setItem('ai_diet_today_water_' + today, '0');
+        } catch (e) {}
+
+        if (window.dashboard && typeof dashboard.loadTodayProgress === 'function') {
+            dashboard.loadTodayProgress(app.state.user);
+        }
+        app.showToast("Water tracker reset to 0 ml");
+
         try {
             await api.resetWater();
-            this.waterAmount = 0;
-            this.updateWaterUI();
-            if (window.dashboard && typeof dashboard.init === 'function') {
-                dashboard.init();
-            }
-            app.showToast("Water tracker reset to 0 ml");
         } catch (e) {
-            // Fallback: log negative amount
-            await this.logWater(-this.waterAmount);
+            console.warn("Backend reset water notice:", e);
         }
     },
 
     async logWater(amount) {
         await this.ensureUser();
-        if (!app.state.userId) {
-            app.showToast('Please set up or select a user profile first', 'error');
-            return;
-        }
+        const today = new Date().toISOString().split('T')[0];
+        const previousGlasses = Math.floor(this.waterAmount / 250);
+        const targetGlasses = Math.max(1, Math.round(this.waterGoalMl / 250) || 8);
+
+        // Optimistic UI update: immediately update waterAmount and UI
+        this.waterAmount = Math.max(0, this.waterAmount + amount);
+        const newGlasses = Math.floor(this.waterAmount / 250);
+        const justRefilledIndex = (amount > 0 && newGlasses > previousGlasses) ? newGlasses : null;
+
+        this.updateWaterUI(justRefilledIndex);
         try {
-            const previousGlasses = Math.floor(this.waterAmount / 250);
-            const result = await api.logWater(amount);
-            this.waterAmount = (result && typeof result.total_today_ml === 'number') 
-                ? result.total_today_ml 
-                : Math.max(0, this.waterAmount + amount);
-            
-            const newGlasses = Math.floor(this.waterAmount / 250);
-            const justRefilledIndex = (amount > 0 && newGlasses > previousGlasses) ? newGlasses : null;
+            localStorage.setItem('ai_diet_today_water_' + today, String(this.waterAmount));
+        } catch (e) {}
 
-            this.updateWaterUI(justRefilledIndex);
+        // Keep dashboard synchronized
+        if (window.dashboard && typeof dashboard.loadTodayProgress === 'function') {
+            dashboard.loadTodayProgress(app.state.user);
+        }
 
-            if (window.dashboard && typeof dashboard.init === 'function' && app.state.currentView === 'dashboard') {
-                dashboard.init();
-            }
-            if (amount === 250) {
+        // Informative toasts
+        if (amount === 250) {
+            if (newGlasses >= targetGlasses && previousGlasses < targetGlasses) {
+                app.showToast(`🎉 Goal achieved! ${newGlasses}/${targetGlasses} glasses refilled today! 💧`);
+            } else {
                 app.showToast(`Logged +1 glass (250ml)! Glass ${newGlasses} refilled. 💧`);
-            } else if (amount > 0) {
-                app.showToast(`Logged +${amount}ml water! Stay hydrated. 💧`);
-            } else if (amount < 0) {
-                app.showToast(`Removed 1 glass (${Math.abs(amount)}ml) water.`);
+            }
+        } else if (amount > 0) {
+            app.showToast(`Logged +${amount}ml water! Stay hydrated. 💧`);
+        } else if (amount < 0) {
+            app.showToast(`Removed 1 glass (${Math.abs(amount)}ml) water.`);
+        }
+
+        // Persist to backend and reconcile if needed
+        try {
+            const result = await api.logWater(amount);
+            if (result && typeof result.total_today_ml === 'number') {
+                this.waterAmount = result.total_today_ml;
+                this.updateWaterUI();
+                try {
+                    localStorage.setItem('ai_diet_today_water_' + today, String(this.waterAmount));
+                } catch (e) {}
             }
         } catch (e) {
-            console.error('Failed to log water', e);
-            app.showToast('Failed to log water', 'error');
+            console.warn('Backend sync failed, saved locally:', e);
         }
     },
 

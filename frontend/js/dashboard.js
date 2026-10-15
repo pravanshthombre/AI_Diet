@@ -47,12 +47,26 @@ const dashboard = {
     async loadTodayProgress(user) {
         try {
             const today = new Date().toISOString().split('T')[0];
-            const tracking = await api.getTracking(today);
+            let tracking = null;
+            try {
+                tracking = await api.getTracking(today);
+            } catch (netErr) {}
 
-            const calPct = Math.min(100, (tracking.actual_calories / (tracking.target_calories || 2000)) * 100) || 0;
-            const proPct = Math.min(100, (tracking.actual_protein / (tracking.target_protein || 60)) * 100) || 0;
-            const fibPct = Math.min(100, (tracking.actual_fiber / (tracking.target_fiber || 30)) * 100) || 0;
-            const h2oPct = Math.min(100, (tracking.actual_water_ml / (tracking.target_water_ml || 2500)) * 100) || 0;
+            const actualCal = tracking ? tracking.actual_calories : 0;
+            const targetCal = tracking ? tracking.target_calories : 2000;
+            const actualPro = tracking ? tracking.actual_protein : 0;
+            const targetPro = tracking ? tracking.target_protein : 60;
+            const actualFib = tracking ? tracking.actual_fiber : 0;
+            const targetFib = tracking ? tracking.target_fiber : 30;
+
+            const localWater = typeof window.tracking !== 'undefined' ? window.tracking.waterAmount : Number(localStorage.getItem('ai_diet_today_water_' + today) || 0);
+            const actualWater = (tracking && typeof tracking.actual_water_ml === 'number') ? tracking.actual_water_ml : localWater;
+            const targetWater = (tracking && typeof tracking.target_water_ml === 'number') ? tracking.target_water_ml : (typeof window.tracking !== 'undefined' ? window.tracking.waterGoalMl : 2500);
+
+            const calPct = Math.min(100, (actualCal / (targetCal || 2000)) * 100) || 0;
+            const proPct = Math.min(100, (actualPro / (targetPro || 60)) * 100) || 0;
+            const fibPct = Math.min(100, (actualFib / (targetFib || 30)) * 100) || 0;
+            const h2oPct = Math.min(100, (actualWater / (targetWater || 2500)) * 100) || 0;
 
             setTimeout(() => {
                 charts.drawProgressRing('cal-ring', calPct, '#10b981', 'Calories');

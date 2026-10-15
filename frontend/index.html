@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
     <div class="page-bg" aria-hidden="true"></div>
@@ -311,18 +311,22 @@
                             <div class="water-visual">
                                 <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                                     <button id="btn-add-water" class="water-glass-btn" onclick="tracking.addOneGlass()" title="Click to add only 1 glass (+250 ml)">
-                                        <span style="font-weight: 400; line-height: 1;">+</span>
+                                        <span style="font-weight: 400; line-height: 1; pointer-events: none;">+</span>
                                     </button>
                                     <span style="font-size: 0.72rem; font-weight: 700; color: #0284c7;">+1 Glass</span>
                                 </div>
 
-                                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
                                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
                                         <span id="water-count" class="water-stats-text">0 / 8 glasses (0 / 2000 ml)</span>
                                         <span id="water-pct-label" style="font-weight: 800; color: #0284c7; font-size: 1.15rem;">0%</span>
                                     </div>
                                     <div class="water-bar-container">
                                         <div class="water-fill" id="water-fill-level" style="width: 0%;"></div>
+                                        <div id="water-bar-ticks" class="water-bar-milestones"></div>
+                                        <div id="water-goal-pin" class="water-goal-pin">
+                                            <span>🎯</span> <span id="water-goal-pin-text">Daily Goal</span>
+                                        </div>
                                     </div>
                                     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                                         <button class="btn btn-outline small" onclick="tracking.undoGlass()" title="Remove 1 glass (-250 ml)" style="padding: 3px 8px; font-size: 0.75rem; color: var(--text-muted);">
@@ -663,15 +667,15 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/auth.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/charts.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/onboarding.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/mealplan.js"></script>
-    <script src="js/tracking.js"></script>
-    <script src="js/foods.js"></script>
-    <script src="js/chat.js"></script>
+    <script src="js/auth.js?v=2"></script>
+    <script src="js/api.js?v=2"></script>
+    <script src="js/charts.js?v=2"></script>
+    <script src="js/app.js?v=2"></script>
+    <script src="js/onboarding.js?v=2"></script>
+    <script src="js/dashboard.js?v=2"></script>
+    <script src="js/mealplan.js?v=2"></script>
+    <script src="js/tracking.js?v=2"></script>
+    <script src="js/foods.js?v=2"></script>
+    <script src="js/chat.js?v=2"></script>
 </body>
 </html>
