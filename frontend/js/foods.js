@@ -134,10 +134,16 @@ const foodsExplorer = {
             return;
         }
         try {
-            await api.logMeal(app.state.userId, foodId, 'lunch', 1.0);
-            app.showToast(`Logged ${foodName} to Lunch!`);
+            await api.logMeal(foodId, 'lunch', 1.0);
+            app.showToast(`Logged ${foodName} to Lunch! 🍽️`);
+            if (window.dashboard && typeof dashboard.loadTodayProgress === 'function') {
+                dashboard.loadTodayProgress(app.state.user);
+            }
+            if (window.tracking && typeof tracking.loadTodayMeals === 'function') {
+                tracking.loadTodayMeals();
+            }
         } catch (e) {
-            app.showToast(`Failed to log ${foodName}`, 'error');
+            app.showToast(`Failed to log ${foodName}: ${e.message || 'Error'}`, 'error');
         }
     }
 };

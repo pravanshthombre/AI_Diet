@@ -117,7 +117,9 @@ const mealplan = {
                             </div>
                             <div style="display: flex; gap: 6px;">
                                 <button class="btn btn-outline small" onclick="mealplan.substitute('${slot}', ${food.id})">Swap</button>
-                                <button class="btn btn-secondary small" onclick="mealplan.quickLogFood(${food.id}, '${slot}', '${food.name.replace(/'/g, "\\'")}', this)">✓ Eaten</button>
+                                ${sessionStorage.getItem(`logged_${slot}_${food.id}_${new Date().toISOString().split('T')[0]}`)
+                                    ? `<button class="btn btn-primary small" style="background: #10b981; border-color: #059669; color: white; pointer-events: none;">✅ Logged</button>`
+                                    : `<button class="btn btn-secondary small" onclick="mealplan.quickLogFood(${food.id}, '${slot}', '${food.name.replace(/'/g, "\\'")}', this)">✓ Eaten</button>`}
                             </div>
                         </div>
                     </div>
@@ -149,21 +151,37 @@ const mealplan = {
         // Visual click feedback immediately
         if (btnElement) {
             btnElement.innerHTML = '<span style="display:inline-block; animation: popup 0.3s ease;">✅ Logged</span>';
-            btnElement.style.backgroundColor = 'var(--primary-500)';
-            btnElement.style.color = 'white';
-            btnElement.style.borderColor = 'var(--primary-500)';
+            btnElement.classList.remove('btn-secondary');
+            btnElement.classList.add('btn-primary');
+            btnElement.style.backgroundColor = '#10b981';
+            btnElement.style.borderColor = '#059669';
+            btnElement.style.color = '#ffffff';
             btnElement.style.pointerEvents = 'none';
         }
 
         try {
-            await api.logMeal(app.state.userId, foodId, slot, 1.0);
-            app.showToast(`Logged "${name}" to ${slot}!`);
+            await api.logMeal(foodId, slot, 1.0);
+            const today = new Date().toISOString().split('T')[0];
+            sessionStorage.setItem(`logged_${slot}_${foodId}_${today}`, 'true');
+            app.showToast(`Logged "${name}" to ${slot}! 🍽️`);
+
+            // Synchronize with dashboard if active
+            if (window.dashboard && typeof dashboard.loadTodayProgress === 'function') {
+                dashboard.loadTodayProgress(app.state.user);
+            }
+            // Synchronize with tracking logged meals if active
+            if (window.tracking && typeof tracking.loadTodayMeals === 'function') {
+                tracking.loadTodayMeals();
+            }
         } catch (e) {
-            app.showToast(`Failed to log ${name}`, 'error');
+            console.error('Error logging meal from plan:', e);
+            app.showToast(`Failed to log ${name}: ${e.message || 'Error'}`, 'error');
             
             // Revert on error
             if (btnElement) {
                 btnElement.innerHTML = '✓ Eaten';
+                btnElement.classList.remove('btn-primary');
+                btnElement.classList.add('btn-secondary');
                 btnElement.style = '';
                 btnElement.style.pointerEvents = 'auto';
             }

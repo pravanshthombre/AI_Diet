@@ -68,8 +68,8 @@ const tracking = {
                 }
             }
             this.updateWaterUI();
-
             this.initScanner();
+            await this.loadTodayMeals();
         } catch (e) {
             console.error('Tracking init error', e);
             this.updateWaterUI();
@@ -430,12 +430,16 @@ const tracking = {
         }
 
         try {
-            await api.logMeal(app.state.userId, parseInt(foodId), mealSlot, servings);
-            app.showToast(`Logged food to ${mealSlot}!`);
+            await api.logMeal(parseInt(foodId), mealSlot, servings);
+            app.showToast(`Logged food to ${mealSlot}! 🍽️`);
             input.value = '';
             delete input.dataset.foodId;
+            await this.loadTodayMeals();
+            if (window.dashboard && typeof dashboard.loadTodayProgress === 'function') {
+                dashboard.loadTodayProgress(app.state.user);
+            }
         } catch (e) {
-            app.showToast('Failed to log meal', 'error');
+            app.showToast('Failed to log meal: ' + (e.message || 'Error'), 'error');
         }
     },
 
@@ -636,8 +640,78 @@ const tracking = {
             // Clear scanner preview
             const preview = document.getElementById('scanner-preview');
             if (preview) preview.classList.add('hidden');
+
+            await this.loadTodayMeals();
+            if (window.dashboard && typeof dashboard.loadTodayProgress === 'function') {
+                dashboard.loadTodayProgress(app.state.user);
+            }
         } catch (err) {
             app.showToast('Failed to log meal: ' + err.message, 'error');
+        }
+    },
+
+    async loadTodayMeals() {
+        const listEl = document.getElementById('today-meals-list');
+        const badgeEl = document.getElementById('logged-meals-badge');
+        if (!listEl) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        try {
+            const track = await api.getTracking(today);
+            const meals = (track && track.meals) ? track.meals : [];
+            
+            if (badgeEl) {
+                const totalKcal = Math.round(track.actual_calories || 0);
+                badgeEl.innerText = `${meals.length} ${meals.length === 1 ? 'Meal' : 'Meals'} Logged (${totalKcal} kcal)`;
+                if (meals.length > 0) {
+                    badgeEl.style.background = '#dcfce7';
+                    badgeEl.style.color = '#15803d';
+                } else {
+                    badgeEl.style.background = '#e0f2fe';
+                    badgeEl.style.color = '#0284c7';
+                }
+            }
+
+            if (meals.length === 0) {
+                listEl.innerHTML = `
+                    <div style="text-align: center; color: var(--text-muted); padding: 18px; font-size: 0.9rem; background: var(--bg-subtle); border-radius: var(--radius-md);">
+                        No meals logged yet today. Click <strong>✓ Eaten</strong> in <a href="#mealplan" onclick="app.navigate('mealplan')" style="color: var(--primary-600); font-weight: 700;">Diet Plan</a> or search above to log meals!
+                    </div>
+                `;
+                return;
+            }
+
+            const slotBadges = {
+                breakfast: { icon: '☀️', color: '#b45309', bg: '#fef3c7' },
+                lunch:     { icon: '🍛', color: '#0369a1', bg: '#e0f2fe' },
+                snack:     { icon: '🫖', color: '#7c3aed', bg: '#ede9fe' },
+                dinner:    { icon: '🌙', color: '#3730a3', bg: '#e0e7ff' },
+            };
+
+            let html = '';
+            meals.forEach(m => {
+                const meta = slotBadges[m.meal_slot] || { icon: '🍽️', color: '#475569', bg: '#f1f5f9' };
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="background: ${meta.bg}; color: ${meta.color}; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 8px; text-transform: uppercase;">
+                                ${meta.icon} ${m.meal_slot}
+                            </span>
+                            <div>
+                                <strong style="font-size: 0.95rem; color: var(--text-main);">${m.food_name}</strong>
+                                <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 6px;">(${m.servings || 1} serv)</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-weight: 700; color: var(--primary-700); font-size: 0.9rem;">${Math.round(m.calories)} kcal</span>
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">${m.protein}g protein</span>
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        } catch (e) {
+            console.warn('Could not load today logged meals:', e);
         }
     }
 };

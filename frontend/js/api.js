@@ -123,13 +123,35 @@ class ApiClient {
     }
 
     // ── Logging ──
-    async logMeal(foodId, mealSlot, servings = 1.0) {
+    async logMeal(arg1, arg2, arg3, arg4) {
+        let foodId, mealSlot, servings;
+        if (arg4 !== undefined) {
+            // Called as logMeal(userId, foodId, mealSlot, servings)
+            foodId = arg2;
+            mealSlot = arg3;
+            servings = arg4;
+        } else if (typeof arg2 === 'string') {
+            // Called as logMeal(foodId, mealSlot, servings)
+            foodId = arg1;
+            mealSlot = arg2;
+            servings = arg3 !== undefined ? arg3 : 1.0;
+        } else if (arg3 !== undefined) {
+            // Called as logMeal(userId, foodId, mealSlot)
+            foodId = arg2;
+            mealSlot = arg3;
+            servings = 1.0;
+        } else {
+            foodId = arg1;
+            mealSlot = arg2 || 'lunch';
+            servings = 1.0;
+        }
+
         return this.request('/log-meal', {
             method: 'POST',
             body: JSON.stringify({
-                food_id: foodId,
-                meal_slot: mealSlot,
-                servings: servings
+                food_id: Number(foodId),
+                meal_slot: String(mealSlot),
+                servings: Number(servings) || 1.0
             })
         });
     }
